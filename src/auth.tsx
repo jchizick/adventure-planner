@@ -13,14 +13,41 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  callbackError: string | null;
+  clearCallbackError: () => void;
+  sendMagicLink: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 
+const callbackErrorFromLocation = () => {
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  if (!query.get("error") && !hash.get("error")) return null;
+  return "This sign-in link is invalid or has expired. Request a new magic link.";
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [callbackError, setCallbackError] = useState<string | null>(() =>
+    callbackErrorFromLocation(),
+  );
+
+  useEffect(() => {
+    if (!callbackError) return;
+    const query = new URLSearchParams(window.location.search);
+    query.delete("error");
+    query.delete("error_code");
+    query.delete("error_description");
+    const cleanQuery = query.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}`,
+    );
+  }, [callbackError]);
 
   useEffect(() => {
     let active = true;
@@ -30,10 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       setSession(nextSession);
       setLoading(false);
+      if (nextSession) setCallbackError(null);
     });
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
+      if (error) {
+        setCallbackError(
+          "We could not restore your session. Please request a new magic link.",
+        );
+      }
       setSession(data.session);
       setLoading(false);
     });
@@ -49,12 +82,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      callbackError,
+      clearCallbackError: () => setCallbackError(null),
+      sendMagicLink: async (email) => {
+        const redirectUrl = new URL(
+          "/today",
+          window.location.origin,
+        ).toString();
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectUrl },
+        });
+        if (error) {
+          if (error.status === 429)
+            throw new Error(
+              "Please wait a moment before requesting another link.",
+            );
+          throw new Error(
+            "We could not send the magic link. Check your email and try again.",
+          );
+        }
+      },
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+        if (error)
+          throw new Error("We could not sign you out. Please try again.");
       },
     }),
-    [loading, session],
+    [callbackError, loading, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

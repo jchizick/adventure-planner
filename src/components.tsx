@@ -1,7 +1,17 @@
-import { CalendarDays, Heart, Image, Lightbulb, Plus, X } from "lucide-react";
+import {
+  CalendarDays,
+  Heart,
+  Image,
+  Lightbulb,
+  LogOut,
+  Plus,
+  X,
+} from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { IdeaStatus } from "./types";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useAuth } from "./auth";
+import { useWorkspace } from "./workspace";
 export const nav = [
   ["/today", "Today", CalendarDays],
   ["/ideas", "Ideas", Lightbulb],
@@ -10,7 +20,23 @@ export const nav = [
 ] as const;
 export function AppShell() {
   const loc = useLocation();
+  const { signOut } = useAuth();
+  const { activeSpace, profile } = useWorkspace();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const detail = loc.pathname.startsWith("/adventures/");
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch (error) {
+      setSignOutError(
+        error instanceof Error ? error.message : "We could not sign you out.",
+      );
+      setSigningOut(false);
+    }
+  };
   return (
     <div className="app-frame">
       <aside className="desktop-nav">
@@ -18,7 +44,7 @@ export function AppShell() {
           <span>Our Adventures</span>
           <Heart size={18} fill="currentColor" />
         </div>
-        <p className="couple">Jordan & Liz</p>
+        <p className="couple">{activeSpace?.name ?? "Our Adventures"}</p>
         <nav>
           {nav.map(([to, label, Icon]) => (
             <NavLink key={to} to={to}>
@@ -34,7 +60,26 @@ export function AppShell() {
           <br />
           Make memories.
         </div>
+        <div className="account-panel">
+          <span>{profile?.displayName}</span>
+          <button onClick={() => void handleSignOut()} disabled={signingOut}>
+            <LogOut aria-hidden="true" />
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+          {signOutError && <small role="alert">{signOutError}</small>}
+        </div>
       </aside>
+      <div className="mobile-account">
+        <span>{activeSpace?.name}</span>
+        <button
+          onClick={() => void handleSignOut()}
+          disabled={signingOut}
+          aria-label="Sign out"
+        >
+          <LogOut aria-hidden="true" />
+        </button>
+        {signOutError && <small role="alert">{signOutError}</small>}
+      </div>
       <main className={detail ? "detail-main" : ""}>
         <Outlet />
       </main>
