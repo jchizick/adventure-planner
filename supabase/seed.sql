@@ -1,0 +1,3 @@
+-- User-specific shared-space seed data belongs here after the Jordan and Liz
+-- authentication users have been created. Do not hard-code auth UUIDs, emails,
+-- credentials, or production user data in this file.
