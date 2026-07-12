@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useAuth } from "./auth";
@@ -104,6 +105,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<SpaceMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const creatingSpaceRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -159,29 +161,66 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       createSpace: async (name) => {
         if (!user) throw new Error("Sign in again to create a shared space.");
+        if (creatingSpaceRef.current) return;
         const spaceName = name.trim();
         if (!spaceName) throw new Error("Enter a name for your shared space.");
-        const { data: space, error: spaceError } = await supabase
-          .from("spaces")
-          .insert({ name: spaceName, created_by: user.id })
-          .select("id, name, created_by")
-          .single();
-        if (spaceError || !space)
-          throw new Error("We could not create your space. Please try again.");
-
-        for (const delay of [0, 250, 600, 1200]) {
-          if (delay) await wait(delay);
-          const { data: membership, error: membershipError } = await supabase
-            .from("space_members")
-            .select("space_id, user_id, role")
-            .eq("space_id", space.id)
-            .eq("user_id", user.id)
-            .maybeSingle();
-          if (membershipError)
-            throw new Error(
-              "Your space was created, but membership could not be confirmed. Try again.",
+        creatingSpaceRef.current = true;
+        const spaceId = crypto.randomUUID();
+        const payload = { id: spaceId, name: spaceName, created_by: user.id };
+        try {
+          if (import.meta.env.DEV)
+            console.info(
+              "Supabase space creation request",
+              JSON.stringify({
+                authenticatedUserId: user.id,
+                suppliedCreatedBy: payload.created_by,
+              }),
             );
-          if (membership) {
+          const { error: spaceError, status } = await supabase
+            .from("spaces")
+            .insert(payload);
+          if (spaceError) {
+            if (import.meta.env.DEV)
+              console.error(
+                "Supabase space creation failed",
+                JSON.stringify({
+                  authenticatedUserId: user.id,
+                  suppliedCreatedBy: payload.created_by,
+                  code: spaceError.code,
+                  message: spaceError.message,
+                  details: spaceError.details,
+                  hint: spaceError.hint,
+                  status,
+                }),
+              );
+            throw new Error(
+              "We could not create your space. Please try again.",
+            );
+          }
+
+          for (const delay of [0, 250, 600, 1200]) {
+            if (delay) await wait(delay);
+            const { data: membership, error: membershipError } = await supabase
+              .from("space_members")
+              .select("space_id, user_id, role")
+              .eq("space_id", spaceId)
+              .eq("user_id", user.id)
+              .maybeSingle();
+            if (membershipError)
+              throw new Error(
+                "Your space was created, but membership could not be confirmed. Try again.",
+              );
+            if (!membership) continue;
+
+            const { data: space, error: loadError } = await supabase
+              .from("spaces")
+              .select("id, name, created_by")
+              .eq("id", spaceId)
+              .single();
+            if (loadError || !space)
+              throw new Error(
+                "Your space was created, but could not be opened. Try again.",
+              );
             const nextMembership: SpaceMembership = {
               spaceId: membership.space_id,
               userId: membership.user_id,
@@ -195,10 +234,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             });
             return;
           }
+          throw new Error(
+            "Your space was created, but membership is still being prepared. Try again shortly.",
+          );
+        } finally {
+          creatingSpaceRef.current = false;
         }
-        throw new Error(
-          "Your space was created, but membership is still being prepared. Try again shortly.",
-        );
       },
     }),
     [activeSpace, error, load, loading, memberships, profile, user],

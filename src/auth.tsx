@@ -94,9 +94,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           options: { emailRedirectTo: redirectUrl },
         });
         if (error) {
+          const diagnostic = {
+            name: error.name,
+            message: error.message,
+            status: error.status,
+            code: error.code,
+          };
+          if (import.meta.env.DEV)
+            console.error(
+              "Supabase magic-link request failed",
+              JSON.stringify(diagnostic),
+            );
           if (error.status === 429)
             throw new Error(
               "Please wait a moment before requesting another link.",
+            );
+          if (import.meta.env.DEV)
+            throw new Error(
+              `Magic-link request failed: ${error.code ?? error.name} (${error.status ?? "no status"}) — ${error.message}`,
             );
           throw new Error(
             "We could not send the magic link. Check your email and try again.",
