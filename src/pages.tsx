@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Bell,
@@ -26,6 +26,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
+import { ideas as prototypeIdeas } from "./data";
+import { useIdeas } from "./ideas";
 import {
   addLocalDays,
   addMonths,
@@ -36,13 +38,7 @@ import {
   toLocalDateKey,
 } from "./calendar";
 import { PageHeader, QuickAdd, Sheet, StatusChip } from "./components";
-import type {
-  AdventurePlanInput,
-  AdventureStop,
-  Category,
-  Idea,
-  IdeaStatus,
-} from "./types";
+import type { AdventureStop, Category, Idea, IdeaStatus } from "./types";
 const catIcon: Record<string, typeof Heart> = {
   Dates: Heart,
   Food: Utensils,
@@ -61,7 +57,7 @@ const formatDate = (iso: string) =>
   }).format(new Date(iso + "T12:00:00"));
 export function Today() {
   const nav = useNavigate();
-  const { ideas, adventures } = useAdventureStore();
+  const { adventures } = useAdventureStore();
   const upcoming = [...adventures]
     .filter((a) => !a.completed)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -120,7 +116,7 @@ export function Today() {
       </div>
       <SectionTitle title="New Ideas" action="See All" />
       <div className="idea-rail">
-        {ideas.slice(0, 3).map((i, n) => (
+        {prototypeIdeas.slice(0, 3).map((i, n) => (
           <button key={i.id} onClick={() => nav("/ideas")}>
             <span>{i.title}</span>
             <small>{i.addedBy} added</small>
@@ -154,13 +150,10 @@ const blankIdea: Idea = {
 };
 export function Ideas() {
   const nav = useNavigate();
-  const { ideas, saveIdea, setIdeaStatus, promoteIdeaToAdventure } =
-    useAdventureStore();
+  const { ideas, loading, error, retry, saveIdea, setIdeaStatus } = useIdeas();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Category | "All">("All");
   const [editing, setEditing] = useState<Idea | null>(null);
-  const [planning, setPlanning] = useState<Idea | null>(null);
-  const originIdeaId = useRef<string | null>(null);
   const counts = useMemo(
     () =>
       ideas.reduce<Record<string, number>>(
@@ -182,15 +175,6 @@ export function Ideas() {
     "Culture",
     "At Home",
   ];
-  const cancelPlanning = () => {
-    const id = originIdeaId.current;
-    setPlanning(null);
-    requestAnimationFrame(
-      () =>
-        id &&
-        document.querySelector<HTMLElement>(`[data-idea-id="${id}"]`)?.focus(),
-    );
-  };
   return (
     <div className="page ideas">
       <PageHeader
@@ -231,78 +215,94 @@ export function Ideas() {
         })}
       </div>
       <SectionTitle title="Saved Ideas" />
-      <div className="idea-list">
-        {shown.map((i) => (
-          <article
-            className="idea-card"
-            data-idea-id={i.id}
-            tabIndex={0}
-            role="button"
-            key={i.id}
-            onClick={() => setEditing(i)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setEditing(i);
-              }
-            }}
+      {loading ? (
+        <div className="ideas-state" role="status" aria-live="polite">
+          <span className="access-spinner" aria-hidden="true" />
+          <h3>Gathering your ideas…</h3>
+          <p>Opening the plans saved in this shared space.</p>
+        </div>
+      ) : error ? (
+        <div className="ideas-state ideas-error" role="alert">
+          <h3>Ideas could not be loaded</h3>
+          <p>{error}</p>
+          <button className="secondary" onClick={() => void retry()}>
+            Try again
+          </button>
+        </div>
+      ) : ideas.length === 0 ? (
+        <div className="ideas-state">
+          <Sparkles aria-hidden="true" />
+          <h3>Start your shared idea list</h3>
+          <p>Save a date, meal, outing, or little plan you want to remember.</p>
+          <button
+            className="primary"
+            onClick={() => setEditing({ ...blankIdea })}
           >
-            <div className={`idea-thumb ${i.category.replaceAll(" ", "-")}`}>
-              <span>
-                {(
-                  {
-                    Food: "🍝",
-                    Culture: "🏛️",
-                    Concerts: "🎸",
-                    "Camping & Travel": "🏕️",
-                    Errands: "🧺",
-                  } as Record<string, string>
-                )[i.category] || "✨"}
-              </span>
-            </div>
-            <div className="idea-body">
-              <h3>{i.title}</h3>
-              <p>{i.description}</p>
-              <div>
-                {i.linkedAdventureId ? (
-                  <span className="planned-chip">
-                    <Check /> Planned
-                  </span>
-                ) : (
-                  <StatusChip status={i.status} />
-                )}
-                <small>{i.addedBy} added</small>
+            Add your first idea
+          </button>
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="ideas-state">
+          <Search aria-hidden="true" />
+          <h3>No matching ideas</h3>
+          <p>Try another search or category.</p>
+        </div>
+      ) : (
+        <div className="idea-list">
+          {shown.map((i) => (
+            <article
+              className="idea-card"
+              data-idea-id={i.id}
+              tabIndex={0}
+              role="button"
+              key={i.id}
+              onClick={() => setEditing(i)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setEditing(i);
+                }
+              }}
+            >
+              <div className={`idea-thumb ${i.category.replaceAll(" ", "-")}`}>
+                <span>
+                  {(
+                    {
+                      Food: "🍝",
+                      Culture: "🏛️",
+                      Concerts: "🎸",
+                      "Camping & Travel": "🏕️",
+                      Errands: "🧺",
+                    } as Record<string, string>
+                  )[i.category] || "✨"}
+                </span>
               </div>
-            </div>
-            <MoreHorizontal />
-          </article>
-        ))}
-      </div>
+              <div className="idea-body">
+                <h3>{i.title}</h3>
+                <p>{i.description}</p>
+                <div>
+                  {i.linkedAdventureId ? (
+                    <span className="planned-chip">
+                      <Check /> Planned
+                    </span>
+                  ) : (
+                    <StatusChip status={i.status} />
+                  )}
+                  <small>{i.addedBy} added</small>
+                </div>
+              </div>
+              <MoreHorizontal />
+            </article>
+          ))}
+        </div>
+      )}
       <QuickAdd onClick={() => setEditing({ ...blankIdea })} />
       <IdeaSheet
         idea={editing}
         onClose={() => setEditing(null)}
         onSave={saveIdea}
         onStatus={setIdeaStatus}
-        onPlan={(idea) => {
-          originIdeaId.current = idea.id;
-          setEditing(null);
-          setPlanning(idea);
-        }}
         onView={(id) => nav(`/adventures/${id}`)}
-      />
-      <PlanAdventureSheet
-        key={planning?.id || "none"}
-        idea={planning}
-        onClose={cancelPlanning}
-        onSubmit={(plan) => {
-          if (!planning) return;
-          const adventure = promoteIdeaToAdventure(planning.id, plan);
-          if (adventure) {
-            setPlanning(null);
-            nav(`/adventures/${adventure.id}`);
-          }
-        }}
       />
     </div>
   );
@@ -312,24 +312,37 @@ function IdeaSheet({
   onClose,
   onSave,
   onStatus,
-  onPlan,
   onView,
 }: {
   idea: Idea | null;
   onClose: () => void;
-  onSave: (i: Idea) => void;
-  onStatus: (id: string, s: IdeaStatus) => void;
-  onPlan: (i: Idea) => void;
+  onSave: (i: Idea) => Promise<void>;
+  onStatus: (id: string, s: IdeaStatus) => Promise<void>;
   onView: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Idea | null>(idea);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   if (idea && !draft) setDraft(idea);
   if (!idea) return null;
   const d = draft?.id === idea.id ? draft : idea;
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    onSave({ ...d, id: d.id || crypto.randomUUID() });
-    onClose();
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(d);
+      onClose();
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "We could not save this idea. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Sheet open title={idea.id ? "Edit idea" : "Add an idea"} onClose={onClose}>
@@ -386,20 +399,38 @@ function IdeaSheet({
             </select>
           </label>
         </div>
-        <button className="primary" type="submit">
-          Save idea
+        {saveError && (
+          <p className="form-error" role="alert">
+            {saveError}
+          </p>
+        )}
+        <button className="primary" type="submit" disabled={saving}>
+          {saving ? "Saving…" : "Save idea"}
         </button>
         {idea.id && (
           <>
             <button
               type="button"
               className="secondary"
-              onClick={() => {
-                onStatus(
-                  idea.id,
-                  d.status === "Confirmed" ? "Idea" : "Confirmed",
-                );
-                onClose();
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                setSaveError(null);
+                try {
+                  await onStatus(
+                    idea.id,
+                    d.status === "Confirmed" ? "Idea" : "Confirmed",
+                  );
+                  onClose();
+                } catch (error) {
+                  setSaveError(
+                    error instanceof Error
+                      ? error.message
+                      : "We could not update this idea. Please try again.",
+                  );
+                } finally {
+                  setSaving(false);
+                }
               }}
             >
               Change status
@@ -416,173 +447,19 @@ function IdeaSheet({
               <button
                 type="button"
                 className="text-action"
-                onClick={() => onPlan(d)}
+                disabled
+                title="Adventure persistence is coming next."
               >
                 Turn into an adventure <ChevronRight />
               </button>
             )}
+            {!idea.linkedAdventureId && (
+              <small className="coming-next">
+                Adventure persistence is coming next.
+              </small>
+            )}
           </>
         )}
-      </form>
-    </Sheet>
-  );
-}
-type PlanErrors = Partial<
-  Record<"title" | "date" | "startTime" | "endTime", string>
->;
-function PlanAdventureSheet({
-  idea,
-  onClose,
-  onSubmit,
-}: {
-  idea: Idea | null;
-  onClose: () => void;
-  onSubmit: (plan: AdventurePlanInput) => void;
-}) {
-  const [plan, setPlan] = useState<AdventurePlanInput>(() => ({
-    title: idea?.title || "",
-    description: idea?.description || "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    status: "Tentative",
-    location: idea?.optionalLocation || "",
-    notes: "",
-  }));
-  const [errors, setErrors] = useState<PlanErrors>({});
-  if (!idea) return null;
-  const update = <K extends keyof AdventurePlanInput>(
-    key: K,
-    next: AdventurePlanInput[K],
-  ) => {
-    setPlan((current) => ({ ...current, [key]: next }));
-    if (key in errors)
-      setErrors((current) => ({ ...current, [key]: undefined }));
-  };
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const nextErrors: PlanErrors = {};
-    if (!plan.title.trim()) nextErrors.title = "Enter a title.";
-    if (!plan.date) nextErrors.date = "Choose a date.";
-    if (!plan.startTime) nextErrors.startTime = "Choose a start time.";
-    if (plan.endTime && plan.startTime && plan.endTime < plan.startTime)
-      nextErrors.endTime = "End time must be later than the start time.";
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) onSubmit(plan);
-  };
-  return (
-    <Sheet open title="Plan this adventure" onClose={onClose}>
-      <form className="idea-form planning-form" onSubmit={submit} noValidate>
-        <label>
-          Title
-          <input
-            aria-label="Title"
-            value={plan.title}
-            onChange={(e) => update("title", e.target.value)}
-            aria-invalid={!!errors.title}
-            aria-describedby={errors.title ? "plan-title-error" : undefined}
-          />
-          {errors.title && (
-            <span className="field-error" id="plan-title-error">
-              {errors.title}
-            </span>
-          )}
-        </label>
-        <label>
-          Description
-          <textarea
-            value={plan.description}
-            onChange={(e) => update("description", e.target.value)}
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Date
-            <input
-              aria-label="Date"
-              type="date"
-              value={plan.date}
-              onChange={(e) => update("date", e.target.value)}
-              aria-invalid={!!errors.date}
-              aria-describedby={errors.date ? "plan-date-error" : undefined}
-            />
-            {errors.date && (
-              <span className="field-error" id="plan-date-error">
-                {errors.date}
-              </span>
-            )}
-          </label>
-          <label>
-            Status
-            <select
-              value={plan.status}
-              onChange={(e) =>
-                update("status", e.target.value as AdventurePlanInput["status"])
-              }
-            >
-              <option>Tentative</option>
-              <option>Confirmed</option>
-            </select>
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Start time
-            <input
-              aria-label="Start time"
-              type="time"
-              value={plan.startTime}
-              onChange={(e) => update("startTime", e.target.value)}
-              aria-invalid={!!errors.startTime}
-              aria-describedby={
-                errors.startTime ? "plan-start-error" : undefined
-              }
-            />
-            {errors.startTime && (
-              <span className="field-error" id="plan-start-error">
-                {errors.startTime}
-              </span>
-            )}
-          </label>
-          <label>
-            End time
-            <input
-              aria-label="End time"
-              type="time"
-              value={plan.endTime}
-              onChange={(e) => update("endTime", e.target.value)}
-              aria-invalid={!!errors.endTime}
-              aria-describedby={errors.endTime ? "plan-end-error" : undefined}
-            />
-            {errors.endTime && (
-              <span className="field-error" id="plan-end-error">
-                {errors.endTime}
-              </span>
-            )}
-          </label>
-        </div>
-        <label>
-          Location
-          <input
-            value={plan.location}
-            onChange={(e) => update("location", e.target.value)}
-          />
-        </label>
-        <label>
-          Notes
-          <textarea
-            value={plan.notes}
-            onChange={(e) => update("notes", e.target.value)}
-          />
-        </label>
-        <div className="sheet-actions">
-          <button className="secondary" type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary" type="submit">
-            Create adventure
-          </button>
-        </div>
       </form>
     </Sheet>
   );

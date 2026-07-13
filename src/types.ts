@@ -15,8 +15,11 @@ export interface Idea {
   category: Category;
   status: IdeaStatus;
   tags: string[];
-  addedBy: "Jordan" | "Liz";
+  addedBy: string;
+  addedById?: string;
+  spaceId?: string;
   createdAt: string;
+  updatedAt?: string;
   optionalLink?: string;
   optionalImage?: string;
   optionalLocation?: string;
