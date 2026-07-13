@@ -17,7 +17,13 @@ export function AppLoading({ message = "Opening your adventures…" }) {
   );
 }
 
-export function SignInScreen() {
+export function SignInScreen({
+  redirectPath = "/today",
+  invitation = false,
+}: {
+  redirectPath?: string;
+  invitation?: boolean;
+} = {}) {
   const { callbackError, clearCallbackError, sendMagicLink } = useAuth();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +44,7 @@ export function SignInScreen() {
     }
     setSubmitting(true);
     try {
-      await sendMagicLink(email.trim());
+      await sendMagicLink(email.trim(), redirectPath);
       setSent(true);
     } catch (nextError) {
       setError(
@@ -61,11 +67,14 @@ export function SignInScreen() {
           <span>Our Adventures</span>
         </div>
         <div className="access-copy">
-          <p className="eyebrow">Plan together</p>
-          <h1 id="sign-in-title">Your next favorite memory starts here.</h1>
+          <p className="eyebrow">{invitation ? "You’re invited" : "Plan together"}</p>
+          <h1 id="sign-in-title">
+            {invitation ? "Join your shared adventure space." : "Your next favorite memory starts here."}
+          </h1>
           <p>
-            Sign in with a secure link to keep plans, ideas, and little moments
-            in one shared place.
+            {invitation
+              ? "Sign in with the same email address that received the invitation."
+              : "Sign in with a secure link to keep plans, ideas, and little moments in one shared place."}
           </p>
         </div>
 

@@ -1531,6 +1531,149 @@ main {
   width: 17px;
   color: var(--gold);
 }
+
+.account-panel .members-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-panel .members-link:hover,
+.account-panel .members-link.active { background: #fff; }
+.account-panel .members-link svg { width: 17px; }
+.mobile-account > a {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--ink);
+}
+
+.members-page { padding-bottom: 90px; }
+.space-switcher {
+  display: grid;
+  gap: 7px;
+  max-width: 360px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.space-switcher select { min-height: 44px; }
+.settings-card {
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255,255,255,.78);
+  box-shadow: var(--shadow-sm);
+}
+.settings-card-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.settings-card-heading > svg { color: var(--coral); }
+.settings-card-heading h2 { margin: 0 0 4px; font-size: 18px; }
+.settings-card-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+.invite-form { display: grid; gap: 8px; }
+.invite-form label { font-size: 13px; font-weight: 650; }
+.invite-form > div { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+.invite-form input,
+.invite-form button { min-height: 44px; }
+.settings-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 13px 15px;
+  border-radius: 14px;
+}
+.settings-message.error { color: #9c2f2a; background: #fff0ee; }
+.settings-message.success { color: #315c35; background: #edf7eb; }
+.settings-message svg { width: 18px; flex: 0 0 auto; }
+.settings-message button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 650;
+}
+.people-list { display: grid; gap: 10px; }
+.person-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.person-row:first-child { border-top: 0; }
+.person-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #8c4741;
+  background: var(--blush);
+  font-weight: 750;
+}
+.person-avatar svg { width: 18px; }
+.person-row > div:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.person-row strong,
+.person-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-row small { color: var(--muted); }
+.person-role { display: grid; justify-items: end; gap: 2px; font-size: 12px; }
+.person-role svg { width: 16px; color: #aa7b22; }
+.invitation-status {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #9a6b1f;
+  background: #fff4d8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.invitation-status.accepted { color: #38613c; background: #eaf5e8; }
+.invitation-status.revoked,
+.invitation-status.expired { color: #706b68; background: #eeeae7; }
+.icon-button.danger { color: #ad4540; }
+.invite-card { max-width: 560px; }
+.invitation-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin: 22px 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+.invitation-summary span { color: var(--muted); }
+.invitation-summary strong { text-transform: capitalize; }
+
+@media (max-width: 600px) {
+  .members-page { padding: 18px 16px 92px; }
+  .settings-card { padding: 16px; }
+  .invite-form > div { grid-template-columns: 1fr; }
+  .person-row { grid-template-columns: 44px minmax(0,1fr) auto; }
+  .person-row > .icon-button { grid-column: 3; }
+  .person-role { grid-column: 3; grid-row: 1; }
+  .invitation-row .invitation-status { grid-column: 3; grid-row: 1; }
+  .settings-message { align-items: flex-start; flex-wrap: wrap; }
+  .settings-message button { width: 100%; margin-left: 28px; justify-content: flex-start; }
+}
 .access-sign-out {
   min-height: 44px;
   width: 100%;

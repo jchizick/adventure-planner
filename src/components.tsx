@@ -5,6 +5,7 @@ import {
   Lightbulb,
   LogOut,
   Plus,
+  Users,
   X,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -62,6 +63,10 @@ export function AppShell() {
         </div>
         <div className="account-panel">
           <span>{profile?.displayName}</span>
+          <NavLink className="members-link" to="/settings/members">
+            <Users aria-hidden="true" />
+            People & invitations
+          </NavLink>
           <button onClick={() => void handleSignOut()} disabled={signingOut}>
             <LogOut aria-hidden="true" />
             {signingOut ? "Signing out…" : "Sign out"}
@@ -71,6 +76,9 @@ export function AppShell() {
       </aside>
       <div className="mobile-account">
         <span>{activeSpace?.name}</span>
+        <NavLink to="/settings/members" aria-label="People and invitations">
+          <Users aria-hidden="true" />
+        </NavLink>
         <button
           onClick={() => void handleSignOut()}
           disabled={signingOut}

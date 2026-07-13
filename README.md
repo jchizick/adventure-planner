@@ -42,13 +42,14 @@ In **Authentication → URL Configuration** in the Supabase dashboard:
   normally run, such as `http://localhost:5173`.
 - Add local redirect patterns for each origin you use, for example
   `http://localhost:5173/**` and `http://127.0.0.1:5173/**`.
-- Add the exact future production callback, such as
-  `https://your-production-domain.example/today`.
+- Add future production callbacks such as
+  `https://your-production-domain.example/today` and
+  `https://your-production-domain.example/invite/**`.
 - Add preview deployment patterns only when needed, and prefer an exact HTTPS
   production redirect over a broad wildcard.
 
 The app derives `emailRedirectTo` from `window.location.origin` and sends users
-back to `/today`; it does not hard-code a development host. Confirm the Magic
+back to `/today` or the current invitation; it does not hard-code a development host. Confirm the Magic
 Link email template uses `{{ .ConfirmationURL }}`, or correctly incorporates
 `{{ .RedirectTo }}` when using a custom template.
 
@@ -73,31 +74,29 @@ CLI keeps migration history aligned with this repository.
 
 ## Current architecture
 
-The frontend still reads and mutates the seeded mock state in `src/data.ts` and
-the existing React context. Supabase now provides authentication, profiles,
-shared-space membership, and onboarding. Ideas, adventures, calendar events,
-and memories remain mock state and do not perform live CRUD.
+Authentication, profiles, spaces, memberships, invitations, Ideas, Adventures,
+Calendar events, itinerary stops, notes, checklists, links, completion, and
+Memories use live Supabase data. `src/data.ts` retains only the explicitly
+seeded Today content that has not yet been migrated. Invitation and membership
+mutations use owner-checked RPCs; the browser has no direct mutation grants on
+`space_invitations` or `space_members`.
 
-## Add the second known member
+## Invitation email delivery
 
-There is intentionally no public invitation flow yet. After the second person
-has signed in once and the `profiles` trigger has created their row, an
-administrator can add that known profile to the existing space in the Supabase
-SQL Editor. Replace both placeholders with IDs copied from the dashboard; do not
-store real UUIDs or emails in this repository.
+The deployed `send-space-invitation` Edge Function validates the signed-in
+owner and invitation before sending. Production delivery uses Resend and needs
+these Edge Function secrets in the Supabase dashboard:
 
-```sql
-insert into public.space_members (space_id, user_id, role)
-values ('<EXISTING_SPACE_UUID>', '<SECOND_USER_PROFILE_UUID>', 'member')
-on conflict (space_id, user_id) do update set role = excluded.role;
+```text
+RESEND_API_KEY
+INVITATION_FROM_EMAIL
 ```
 
-Verify the selected profile and space before running the statement. This is an
-administrator-only setup step; never expose a secret or service-role key in the
-browser.
-
-The next planned migration step is to add an owner-controlled invitation flow
-or typed live repositories, then replace each mock-state workflow incrementally.
+`INVITATION_FROM_EMAIL` must use a sender/domain verified by the configured
+Resend account. Until both secrets are configured, invitation creation remains
+functional and the development build presents a copyable invitation URL. A
+production build reports that delivery is not configured and never exposes the
+raw token.
 
 ## Verification
 

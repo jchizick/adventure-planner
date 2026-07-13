@@ -15,7 +15,7 @@ type AuthState = {
   loading: boolean;
   callbackError: string | null;
   clearCallbackError: () => void;
-  sendMagicLink: (email: string) => Promise<void>;
+  sendMagicLink: (email: string, redirectPath?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -84,9 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       callbackError,
       clearCallbackError: () => setCallbackError(null),
-      sendMagicLink: async (email) => {
+      sendMagicLink: async (email, redirectPath = "/today") => {
         const redirectUrl = new URL(
-          "/today",
+          redirectPath.startsWith("/") ? redirectPath : "/today",
           window.location.origin,
         ).toString();
         const { error } = await supabase.auth.signInWithOtp({

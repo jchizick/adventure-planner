@@ -27,15 +27,19 @@ export type SpaceMembership = {
   spaceId: string;
   userId: string;
   role: "owner" | "member";
+  createdAt: string;
 };
 
 type WorkspaceState = {
   profile: Profile | null;
   activeSpace: SharedSpace | null;
+  spaces: SharedSpace[];
   memberships: SpaceMembership[];
   loading: boolean;
   error: string | null;
   retry: () => Promise<void>;
+  refreshMemberships: (preferredSpaceId?: string) => Promise<void>;
+  selectSpace: (spaceId: string) => void;
   updateDisplayName: (name: string) => Promise<void>;
   createSpace: (name: string) => Promise<void>;
 };
@@ -69,7 +73,7 @@ async function loadProfile(userId: string): Promise<Profile> {
 async function loadMemberships(userId: string) {
   const { data, error } = await supabase
     .from("space_members")
-    .select("space_id, user_id, role")
+    .select("space_id, user_id, role, created_at")
     .eq("user_id", userId);
   if (error)
     throw new Error("We could not load your shared spaces. Please try again.");
@@ -77,6 +81,7 @@ async function loadMemberships(userId: string) {
     spaceId: membership.space_id,
     userId: membership.user_id,
     role: membership.role as SpaceMembership["role"],
+    createdAt: membership.created_at,
   }));
 }
 
@@ -102,12 +107,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activeSpace, setActiveSpace] = useState<SharedSpace | null>(null);
+  const [spaces, setSpaces] = useState<SharedSpace[]>([]);
   const [memberships, setMemberships] = useState<SpaceMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const creatingSpaceRef = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredSpaceId?: string) => {
     if (!user) return;
     setLoading(true);
     setError(null);
@@ -119,7 +125,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const spaces = await loadSpaces(nextMemberships);
       setProfile(nextProfile);
       setMemberships(nextMemberships);
-      setActiveSpace(spaces[0] ?? null);
+      setSpaces(spaces);
+      const persistedSpaceId = window.localStorage.getItem(
+        `our-adventures:active-space:${user.id}`,
+      );
+      const requestedSpaceId = preferredSpaceId ?? persistedSpaceId;
+      const nextSpace =
+        spaces.find((space) => space.id === requestedSpaceId) ?? spaces[0] ?? null;
+      setActiveSpace(nextSpace);
+      if (nextSpace)
+        window.localStorage.setItem(
+          `our-adventures:active-space:${user.id}`,
+          nextSpace.id,
+        );
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -140,10 +158,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => ({
       profile,
       activeSpace,
+      spaces,
       memberships,
       loading,
       error,
-      retry: load,
+      retry: () => load(),
+      refreshMemberships: load,
+      selectSpace: (spaceId) => {
+        const nextSpace = spaces.find((space) => space.id === spaceId);
+        if (!nextSpace || !user) return;
+        setActiveSpace(nextSpace);
+        window.localStorage.setItem(
+          `our-adventures:active-space:${user.id}`,
+          nextSpace.id,
+        );
+      },
       updateDisplayName: async (name) => {
         if (!user) throw new Error("Sign in again to update your profile.");
         const displayName = name.trim();
@@ -202,7 +231,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             if (delay) await wait(delay);
             const { data: membership, error: membershipError } = await supabase
               .from("space_members")
-              .select("space_id, user_id, role")
+              .select("space_id, user_id, role, created_at")
               .eq("space_id", spaceId)
               .eq("user_id", user.id)
               .maybeSingle();
@@ -225,13 +254,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               spaceId: membership.space_id,
               userId: membership.user_id,
               role: membership.role as SpaceMembership["role"],
+              createdAt: membership.created_at,
             };
             setMemberships((current) => [...current, nextMembership]);
-            setActiveSpace({
+            const nextSpace = {
               id: space.id,
               name: space.name,
               createdBy: space.created_by,
-            });
+            };
+            setSpaces((current) => [...current, nextSpace]);
+            setActiveSpace(nextSpace);
+            window.localStorage.setItem(
+              `our-adventures:active-space:${user.id}`,
+              nextSpace.id,
+            );
             return;
           }
           throw new Error(
@@ -242,7 +278,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [activeSpace, error, load, loading, memberships, profile, user],
+    [activeSpace, error, load, loading, memberships, profile, spaces, user],
   );
 
   return (
