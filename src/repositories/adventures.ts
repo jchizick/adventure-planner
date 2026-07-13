@@ -85,6 +85,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     addedBy: profileName(row.creator_profile),
     updatedBy: profileName(row.updater_profile ?? row.creator_profile),
     completed: row.status === "completed" || row.completed_at !== null,
+    completedAt: row.completed_at ?? undefined,
     favorite: row.is_favorite,
   };
 }
@@ -205,5 +206,26 @@ export async function updateAdventureFavorite(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("update", error);
+  return mapAdventure(data as unknown as AdventureRow);
+}
+
+export async function updateAdventureCompletion(
+  spaceId: string,
+  adventureId: string,
+  userId: string,
+  completed: boolean,
+): Promise<Adventure> {
+  const { data, error } = await supabase
+    .from("adventures")
+    .update({
+      status: completed ? "completed" : "confirmed",
+      completed_at: completed ? new Date().toISOString() : null,
+      updated_by: userId,
+    })
+    .eq("space_id", spaceId)
+    .eq("id", adventureId)
+    .select(adventureColumns)
+    .single();
+  if (error) throw repositoryError(completed ? "complete" : "restore", error);
   return mapAdventure(data as unknown as AdventureRow);
 }

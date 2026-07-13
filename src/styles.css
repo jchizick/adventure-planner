@@ -1234,6 +1234,46 @@ main {
 .complete-button.done {
   background: var(--sage);
 }
+.completed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f3e7;
+  color: #3f7548;
+  font-size: 12px;
+  font-weight: 700;
+}
+.completed-badge svg { width: 14px; height: 14px; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.inline-error { display: flex; gap: 12px; align-items: center; justify-content: space-between; color: #a43b35; }
+.inline-error button { min-height: 44px; }
+.compact-empty { padding: 24px; text-align: center; color: var(--muted); background: #faf7f2; border-radius: 16px; }
+.compact-empty svg { width: 22px; }
+.checklist-items, .saved-links { display: grid; gap: 8px; margin: 14px 0; }
+.checklist-item, .saved-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid #eee5dc; border-radius: 14px; background: white; }
+.checklist-item label { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; }
+.checklist-item input { width: 20px; height: 20px; accent-color: var(--coral); }
+.checklist-item input:checked + span { color: var(--muted); text-decoration: line-through; }
+.item-actions { display: flex; gap: 3px; }
+.item-actions button { display: grid; place-items: center; min-width: 38px; min-height: 38px; padding: 0; border: 0; border-radius: 10px; background: transparent; }
+.item-actions button:hover, .item-actions button:focus-visible { background: #f7f0e9; }
+.item-actions button:disabled { opacity: .3; }
+.item-actions svg { width: 16px; height: 16px; }
+.child-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 16px; }
+.child-form label { display: grid; gap: 6px; flex: 1 1 180px; font-size: 12px; font-weight: 700; }
+.child-form input { width: 100%; min-height: 44px; border: 1px solid #ded4cb; border-radius: 12px; padding: 0 12px; font: inherit; }
+.child-form button { min-height: 44px; }
+.saved-link > a { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; color: inherit; text-decoration: none; }
+.saved-link > a > svg { width: 18px; flex: 0 0 auto; }
+.saved-link span { display: grid; min-width: 0; }
+.saved-link small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.memory-card { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.memory-card span { color: var(--muted); font-size: 12px; }
+.memory-art img { width: 100%; height: 100%; object-fit: cover; }
+.agenda-row.completed { opacity: .72; border-left-color: #729479; }
 .memory-intro {
   border-radius: 22px;
   padding: 24px;

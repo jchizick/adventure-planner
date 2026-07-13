@@ -22,12 +22,10 @@ import {
   Check,
   Pencil,
   Trash2,
+  ExternalLink,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
-import {
-  adventures as prototypeAdventures,
-  ideas as prototypeIdeas,
-} from "./data";
+import { ideas as prototypeIdeas } from "./data";
 import { useIdeas } from "./ideas";
 import {
   addLocalDays,
@@ -42,6 +40,8 @@ import { PageHeader, QuickAdd, Sheet, StatusChip } from "./components";
 import type {
   AdventurePlanInput,
   AdventureStop,
+  AdventureLink,
+  ChecklistItem,
   Category,
   Idea,
   IdeaStatus,
@@ -1089,6 +1089,64 @@ function StopEditorSheet({
   );
 }
 
+function ChecklistPanel({ items, loading, error, onRetry, onAdd, onEdit, onToggle, onDelete, onReorder }: {
+  items: ChecklistItem[]; loading: boolean; error: string | null;
+  onRetry: () => Promise<void>; onAdd: (label: string) => Promise<void>;
+  onEdit: (id: string, label: string) => Promise<void>; onToggle: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>; onReorder: (id: string, direction: -1 | 1) => Promise<void>;
+}) {
+  const [label, setLabel] = useState("");
+  const [editing, setEditing] = useState<ChecklistItem | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const ordered = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+  const completed = items.filter((item) => item.completed).length;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const next = label.trim();
+    if (!next) { setMessage("Enter a checklist item."); return; }
+    setSaving(true); setMessage(null);
+    try { if (editing) await onEdit(editing.id, next); else await onAdd(next); setLabel(""); setEditing(null); }
+    catch (nextError) { setMessage(nextError instanceof Error ? nextError.message : "We could not save this item."); }
+    finally { setSaving(false); }
+  };
+  return <div className="tab-panel checklist-live">
+    <div className="panel-heading"><div><h2>Shared checklist</h2><p>{items.length ? `${completed} of ${items.length} complete` : "Pack the little things together."}</p></div></div>
+    {loading && <p className="inline-state" role="status">Loading checklist…</p>}
+    {error && <div className="inline-error" role="alert"><span>{error}</span><button onClick={() => void onRetry()}>Retry</button></div>}
+    {!loading && !error && !ordered.length && <div className="compact-empty"><Check /><p>No checklist items yet.</p></div>}
+    <div className="checklist-items">{ordered.map((item, index) => <div className="checklist-item" key={item.id}>
+      <label><input type="checkbox" checked={item.completed} onChange={() => void onToggle(item.id)} aria-label={`${item.completed ? "Mark incomplete" : "Mark complete"}: ${item.label}`} /><span>{item.label}</span></label>
+      <div className="item-actions">
+        <button disabled={index === 0} onClick={() => void onReorder(item.id, -1)} aria-label={`Move ${item.label} up`}><ChevronUp /></button>
+        <button disabled={index === ordered.length - 1} onClick={() => void onReorder(item.id, 1)} aria-label={`Move ${item.label} down`}><ChevronDown /></button>
+        <button onClick={() => { setEditing(item); setLabel(item.label); }} aria-label={`Edit ${item.label}`}><Pencil /></button>
+        <button onClick={() => { if (window.confirm(`Delete “${item.label}”?`)) void onDelete(item.id); }} aria-label={`Delete ${item.label}`}><Trash2 /></button>
+      </div>
+    </div>)}</div>
+    <form className="child-form" onSubmit={submit}><label><span>{editing ? "Edit item" : "New item"}</span><input value={label} onChange={(event) => setLabel(event.target.value)} disabled={saving} /></label><button className="primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save" : "Add item"}</button>{editing && <button type="button" className="secondary" onClick={() => { setEditing(null); setLabel(""); }}>Cancel</button>}</form>
+    {message && <p className="form-error" role="alert">{message}</p>}
+  </div>;
+}
+
+function LinksPanel({ links, loading, error, onRetry, onAdd, onEdit, onDelete }: {
+  links: AdventureLink[]; loading: boolean; error: string | null; onRetry: () => Promise<void>;
+  onAdd: (label: string, url: string) => Promise<void>; onEdit: (id: string, label: string, url: string) => Promise<void>; onDelete: (id: string) => Promise<void>;
+}) {
+  const [label, setLabel] = useState(""); const [url, setUrl] = useState("");
+  const [editing, setEditing] = useState<AdventureLink | null>(null);
+  const [saving, setSaving] = useState(false); const [message, setMessage] = useState<string | null>(null);
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!label.trim() || !url.trim()) { setMessage("Enter both a label and URL."); return; } setSaving(true); setMessage(null); try { if (editing) await onEdit(editing.id, label, url); else await onAdd(label, url); setLabel(""); setUrl(""); setEditing(null); } catch (nextError) { setMessage(nextError instanceof Error ? nextError.message : "We could not save this link."); } finally { setSaving(false); } };
+  return <div className="tab-panel links-live"><h2>Useful links</h2>
+    {loading && <p className="inline-state" role="status">Loading links…</p>}
+    {error && <div className="inline-error" role="alert"><span>{error}</span><button onClick={() => void onRetry()}>Retry</button></div>}
+    {!loading && !error && !links.length && <div className="compact-empty"><ExternalLink /><p>No useful links saved yet.</p></div>}
+    <div className="saved-links">{links.map((link) => <div className="saved-link" key={link.id}><a href={link.url} target="_blank" rel="noopener noreferrer"><ExternalLink /><span><b>{link.label}</b><small>{link.url}</small></span></a><div className="item-actions"><button onClick={() => { setEditing(link); setLabel(link.label); setUrl(link.url); }} aria-label={`Edit ${link.label}`}><Pencil /></button><button onClick={() => { if (window.confirm(`Delete “${link.label}”?`)) void onDelete(link.id); }} aria-label={`Delete ${link.label}`}><Trash2 /></button></div></div>)}</div>
+    <form className="child-form" onSubmit={submit}><label><span>Label</span><input value={label} onChange={(event) => setLabel(event.target.value)} disabled={saving} /></label><label><span>URL</span><input inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com" disabled={saving} /></label><button className="primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save link" : "Add link"}</button>{editing && <button type="button" className="secondary" onClick={() => { setEditing(null); setLabel(""); setUrl(""); }}>Cancel</button>}</form>
+    {message && <p className="form-error" role="alert">{message}</p>}
+  </div>;
+}
+
 export function AdventureDetail() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -1099,13 +1157,25 @@ export function AdventureDetail() {
     retry,
     stopsLoading,
     stopsError,
+    childDataLoading,
+    childDataError,
     loadAdventureStops,
+    loadAdventureChildren,
     toggleFavorite,
     saveNotes,
     addAdventureStop,
     updateAdventureStop,
     deleteAdventureStop,
     reorderAdventureStops,
+    addChecklistItem,
+    editChecklistItem,
+    toggleChecklistItem,
+    deleteChecklistItem,
+    reorderChecklistItem,
+    addAdventureLink,
+    editAdventureLink,
+    deleteAdventureLink,
+    setAdventureCompleted,
   } = useAdventureStore();
   const a = adventures.find((x) => x.id === id);
   const adventureId = a?.id;
@@ -1120,10 +1190,13 @@ export function AdventureDetail() {
   const [deleteCandidate, setDeleteCandidate] = useState<AdventureStop | null>(
     null,
   );
+  const [completionSaving, setCompletionSaving] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   useEffect(() => {
     if (!adventureId) return;
     void loadAdventureStops(adventureId);
-  }, [adventureId, loadAdventureStops]);
+    void loadAdventureChildren(adventureId);
+  }, [adventureId, loadAdventureChildren, loadAdventureStops]);
   if (loading)
     return (
       <div className="page">
@@ -1172,6 +1245,7 @@ export function AdventureDetail() {
           <Heart fill={a.favorite ? "currentColor" : "none"} />
         </button>
         <h1>{a.title}</h1>
+        {a.completed && <span className="completed-badge"><Check /> Completed</span>}
         <p className="detail-date">
           {formatDate(a.date)}
           <br />
@@ -1353,16 +1427,19 @@ export function AdventureDetail() {
           </div>
         )}
         {tab === "Links" && (
-          <div className="tab-panel">
-            <h2>Useful links</h2>
-            <p>Persistent shared links are coming next.</p>
-          </div>
+          <LinksPanel links={a.links} loading={childDataLoading} error={childDataError}
+            onRetry={() => loadAdventureChildren(a.id)}
+            onAdd={(label, url) => addAdventureLink(a.id, label, url)}
+            onEdit={(linkId, label, url) => editAdventureLink(a.id, linkId, label, url)}
+            onDelete={(linkId) => deleteAdventureLink(a.id, linkId)} />
         )}
         {tab === "Checklist" && (
-          <div className="tab-panel checklist">
-            <h2>Shared checklist</h2>
-            <p>Persistent checklist items are coming next.</p>
-          </div>
+          <ChecklistPanel items={a.checklist} loading={childDataLoading} error={childDataError}
+            onRetry={() => loadAdventureChildren(a.id)} onAdd={(label) => addChecklistItem(a.id, label)}
+            onEdit={(itemId, label) => editChecklistItem(a.id, itemId, label)}
+            onToggle={(itemId) => toggleChecklistItem(a.id, itemId)}
+            onDelete={(itemId) => deleteChecklistItem(a.id, itemId)}
+            onReorder={(itemId, direction) => reorderChecklistItem(a.id, itemId, direction)} />
         )}
         {stopEditor && (
           <StopEditorSheet
@@ -1409,25 +1486,37 @@ export function AdventureDetail() {
         )}
         <button
           className={`complete-button ${a.completed ? "done" : ""}`}
-          disabled
-          title="Completion persistence is coming next."
+          disabled={completionSaving}
+          onClick={async () => {
+            setCompletionSaving(true); setCompletionError(null);
+            try { await setAdventureCompleted(a.id, !a.completed); }
+            catch (nextError) { setCompletionError(nextError instanceof Error ? nextError.message : "We could not update completion."); }
+            finally { setCompletionSaving(false); }
+          }}
         >
-          {a.completed ? (
+          {completionSaving ? "Saving…" : a.completed ? (
             <>
-              <Check /> Adventure completed
+              <Check /> Restore to upcoming
             </>
           ) : (
             <>
-              Completion persistence is coming next <Sparkles />
+              Mark Adventure completed <Sparkles />
             </>
           )}
         </button>
+        {completionError && <p className="form-error" role="alert">{completionError}</p>}
       </section>
     </div>
   );
 }
 export function Memories() {
-  const done = prototypeAdventures.filter((a) => a.completed);
+  const nav = useNavigate();
+  const { adventures, loading, error, retry } = useAdventureStore();
+  const done = [...adventures]
+    .filter((adventure) => adventure.completed)
+    .sort((first, second) =>
+      (second.completedAt || second.date).localeCompare(first.completedAt || first.date),
+    );
   return (
     <div className="page memories">
       <PageHeader eyebrow="The days worth keeping" title="Memories" />
@@ -1440,23 +1529,26 @@ export function Memories() {
         </p>
       </div>
       <SectionTitle title="Completed adventures" />
+      {loading && <p className="inline-state" role="status">Gathering your memories…</p>}
+      {error && <div className="ideas-state ideas-error" role="alert"><p>{error}</p><button onClick={() => void retry()}>Try again</button></div>}
       <div className="memory-grid">
-        {done.length ? (
+        {!loading && !error && done.length ? (
           done.map((a) => (
-            <article className="memory-card" key={a.id}>
+            <button className="memory-card" key={a.id} onClick={() => nav(`/adventures/${a.id}`)}>
               <div className="memory-art">🌅</div>
               <small>{formatDate(a.date)}</small>
               <h3>{a.title}</h3>
-              <p>{a.description}</p>
-            </article>
+              <p>{a.notes || a.description || a.location}</p>
+              <span>{a.location}</span>
+            </button>
           ))
-        ) : (
+        ) : !loading && !error ? (
           <div className="empty-memory">
             <Heart />
             <h3>Your first memory is waiting</h3>
             <p>Complete an adventure and it will appear here.</p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

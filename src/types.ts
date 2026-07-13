@@ -40,11 +40,14 @@ export interface ChecklistItem {
   id: string;
   label: string;
   completed: boolean;
+  sortOrder: number;
+  createdBy: string;
 }
 export interface AdventureLink {
   id: string;
   label: string;
   url: string;
+  sortOrder: number;
 }
 export interface Adventure {
   id: string;
@@ -65,6 +68,7 @@ export interface Adventure {
   addedBy: string;
   updatedBy: string;
   completed: boolean;
+  completedAt?: string;
   favorite: boolean;
 }
 export interface CalendarEvent {

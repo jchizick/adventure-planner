@@ -14,6 +14,7 @@ import {
   loadAdventures,
   promoteIdea as promoteIdeaRow,
   updateAdventureFavorite,
+  updateAdventureCompletion,
   updateAdventureNotes,
 } from "./repositories/adventures";
 import {
@@ -24,6 +25,19 @@ import {
   updateStop,
   type StopDraft,
 } from "./repositories/adventure-stops";
+import {
+  createChecklistItem,
+  deleteChecklistItem,
+  loadChecklist,
+  reorderChecklist,
+  updateChecklistItem,
+} from "./repositories/checklist-items";
+import {
+  createLink,
+  deleteLink,
+  loadLinks,
+  updateLink,
+} from "./repositories/adventure-links";
 import type {
   Adventure,
   AdventurePlanInput,
@@ -40,6 +54,8 @@ type Store = {
   error: string | null;
   stopsLoading: boolean;
   stopsError: string | null;
+  childDataLoading: boolean;
+  childDataError: string | null;
   retry: () => Promise<void>;
   createAdventure: (plan: AdventurePlanInput) => Promise<Adventure>;
   promoteIdeaToAdventure: (
@@ -59,6 +75,16 @@ type Store = {
     stopId: string,
     direction: -1 | 1,
   ) => Promise<void>;
+  loadAdventureChildren: (adventureId: string) => Promise<void>;
+  addChecklistItem: (adventureId: string, label: string) => Promise<void>;
+  editChecklistItem: (adventureId: string, itemId: string, label: string) => Promise<void>;
+  toggleChecklistItem: (adventureId: string, itemId: string) => Promise<void>;
+  deleteChecklistItem: (adventureId: string, itemId: string) => Promise<void>;
+  reorderChecklistItem: (adventureId: string, itemId: string, direction: -1 | 1) => Promise<void>;
+  addAdventureLink: (adventureId: string, label: string, url: string) => Promise<void>;
+  editAdventureLink: (adventureId: string, linkId: string, label: string, url: string) => Promise<void>;
+  deleteAdventureLink: (adventureId: string, linkId: string) => Promise<void>;
+  setAdventureCompleted: (id: string, completed: boolean) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   saveNotes: (id: string, notes: string) => Promise<void>;
 };
@@ -76,6 +102,8 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [stopsLoading, setStopsLoading] = useState(false);
   const [stopsError, setStopsError] = useState<string | null>(null);
+  const [childDataLoading, setChildDataLoading] = useState(false);
+  const [childDataError, setChildDataError] = useState<string | null>(null);
   const creatingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -105,10 +133,35 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
     setAdventures((current) =>
       current.map((adventure) =>
         adventure.id === next.id
-          ? { ...next, stops: adventure.stops }
+          ? {
+              ...next,
+              stops: adventure.stops,
+              checklist: adventure.checklist,
+              links: adventure.links,
+            }
           : adventure,
       ),
     );
+  }, []);
+
+  const loadAdventureChildren = useCallback(async (adventureId: string) => {
+    setChildDataLoading(true);
+    setChildDataError(null);
+    try {
+      const [checklist, links] = await Promise.all([
+        loadChecklist(adventureId),
+        loadLinks(adventureId),
+      ]);
+      setAdventures((current) =>
+        current.map((adventure) =>
+          adventure.id === adventureId ? { ...adventure, checklist, links } : adventure,
+        ),
+      );
+    } catch (nextError) {
+      setChildDataError(nextError instanceof Error ? nextError.message : "We could not load the checklist and links.");
+    } finally {
+      setChildDataLoading(false);
+    }
   }, []);
 
   const loadAdventureStops = useCallback(async (adventureId: string) => {
@@ -157,6 +210,8 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
       error,
       stopsLoading,
       stopsError,
+      childDataLoading,
+      childDataError,
       retry: load,
       createAdventure: async (plan) => {
         if (!user || !activeSpace)
@@ -275,6 +330,62 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
           ),
         );
       },
+      loadAdventureChildren,
+      addChecklistItem: async (adventureId, label) => {
+        if (!user) throw new Error("Sign in and try again.");
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const created = await createChecklistItem(adventureId, user.id, label, adventure.checklist.length + 1);
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, checklist: [...item.checklist, created] } : item));
+      },
+      editChecklistItem: async (adventureId, itemId, label) => {
+        const saved = await updateChecklistItem(adventureId, itemId, { label });
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, checklist: item.checklist.map((entry) => entry.id === itemId ? saved : entry) } : item));
+      },
+      toggleChecklistItem: async (adventureId, itemId) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        const entry = adventure?.checklist.find((item) => item.id === itemId);
+        if (!entry) throw new Error("Checklist item not found.");
+        const saved = await updateChecklistItem(adventureId, itemId, { completed: !entry.completed });
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, checklist: item.checklist.map((candidate) => candidate.id === itemId ? saved : candidate) } : item));
+      },
+      deleteChecklistItem: async (adventureId, itemId) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        await deleteChecklistItem(adventureId, itemId);
+        const remaining = adventure.checklist.filter((item) => item.id !== itemId);
+        await reorderChecklist(adventureId, remaining.map((item) => item.id));
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, checklist: remaining.map((entry, index) => ({ ...entry, sortOrder: index + 1 })) } : item));
+      },
+      reorderChecklistItem: async (adventureId, itemId, direction) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const next = [...adventure.checklist].sort((a, b) => a.sortOrder - b.sortOrder);
+        const from = next.findIndex((item) => item.id === itemId);
+        const to = from + direction;
+        if (from < 0 || to < 0 || to >= next.length) return;
+        [next[from], next[to]] = [next[to], next[from]];
+        await reorderChecklist(adventureId, next.map((item) => item.id));
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, checklist: next.map((entry, index) => ({ ...entry, sortOrder: index + 1 })) } : item));
+      },
+      addAdventureLink: async (adventureId, label, url) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const created = await createLink(adventureId, label, url, adventure.links.length + 1);
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, links: [...item.links, created] } : item));
+      },
+      editAdventureLink: async (adventureId, linkId, label, url) => {
+        const saved = await updateLink(adventureId, linkId, label, url);
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, links: item.links.map((entry) => entry.id === linkId ? saved : entry) } : item));
+      },
+      deleteAdventureLink: async (adventureId, linkId) => {
+        await deleteLink(adventureId, linkId);
+        setAdventures((current) => current.map((item) => item.id === adventureId ? { ...item, links: item.links.filter((entry) => entry.id !== linkId) } : item));
+      },
+      setAdventureCompleted: async (id, completed) => {
+        if (!user || !activeSpace) throw new Error("Open your shared space and try again.");
+        replaceAdventure(await updateAdventureCompletion(activeSpace.id, id, user.id, completed));
+      },
       toggleFavorite: async (id) => {
         if (!user || !activeSpace)
           throw new Error("Open your shared space and try again.");
@@ -305,10 +416,13 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
       error,
       load,
       loadAdventureStops,
+      loadAdventureChildren,
       loading,
       replaceAdventure,
       stopsError,
       stopsLoading,
+      childDataLoading,
+      childDataError,
       user,
     ],
   );
