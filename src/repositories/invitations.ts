@@ -1,9 +1,10 @@
 import { supabase } from "../lib/supabase";
+import { resolveMemberDisplayName } from "../member-names";
 import type { SharedSpace } from "../workspace";
 
 export type SpaceMember = {
   userId: string;
-  displayName: string | null;
+  displayName: string;
   email: string;
   role: "owner" | "member";
   joinedAt: string;
@@ -89,7 +90,10 @@ export async function loadSpaceMembers(spaceId: string) {
   return ((data ?? []) as MemberRpcRow[]).map(
     (row): SpaceMember => ({
       userId: row.user_id,
-      displayName: row.display_name,
+      displayName: resolveMemberDisplayName({
+        displayName: row.display_name,
+        email: row.email,
+      }),
       email: row.email,
       role: row.role as SpaceMember["role"],
       joinedAt: row.joined_at,

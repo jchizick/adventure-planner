@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,17 +27,36 @@ import {
   Palette,
   Home,
   Check,
+  Copy,
+  ImagePlus,
   Pencil,
   Trash2,
   ExternalLink,
+  Flag,
+  Plane,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
 import { ideas as prototypeIdeas } from "./data";
 import { useIdeas } from "./ideas";
 import {
+  countAdvancedIdeaFilters,
+  emptyAdvancedIdeaFilters,
+  filterIdeas,
+  primaryCategories,
+  type AdvancedIdeaFilters,
+  type IdeaCategoryFilter,
+  type IdeaFilterStatus,
+  type SchedulingFilter,
+} from "./idea-model";
+import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
+import { loadMemorySummaries } from "./repositories/memories";
+import { useWorkspace } from "./workspace";
+import {
   addLocalDays,
   addMonths,
   buildMonthGrid,
+  formatAdventureCountdown,
+  formatAdventureDateTimeRange,
   monthForDate,
   parseLocalDate,
   sortCalendarEvents,
@@ -45,16 +71,16 @@ import type {
   Category,
   Idea,
   IdeaStatus,
+  MemorySummary,
 } from "./types";
 const catIcon: Record<string, typeof Heart> = {
-  Dates: Heart,
-  Food: Utensils,
-  Concerts: Music,
-  Outdoors: Mountain,
-  "Camping & Travel": Mountain,
-  Culture: Palette,
-  Errands: Check,
-  "At Home": Home,
+  "date-night": Heart,
+  "food-drink": Utensils,
+  "music-events": Music,
+  outdoors: Mountain,
+  culture: Palette,
+  "at-home": Home,
+  "trips-getaways": Plane,
 };
 const formatDate = (iso: string) =>
   new Intl.DateTimeFormat("en-CA", {
@@ -62,15 +88,74 @@ const formatDate = (iso: string) =>
     month: "short",
     day: "numeric",
   }).format(new Date(iso + "T12:00:00"));
+
+const ITINERARY_STOP_COLORS = [
+  "#b94d45",
+  "#ad6425",
+  "#5477a8",
+  "#567c50",
+  "#3e817c",
+  "#916817",
+] as const;
+const FINAL_STOP_COLOR = "#6d5cac";
+
+const getItineraryStopColor = (index: number, isFinalStop: boolean) =>
+  isFinalStop
+    ? FINAL_STOP_COLOR
+    : ITINERARY_STOP_COLORS[index % ITINERARY_STOP_COLORS.length];
+
+type ItineraryStopMarkerProps = {
+  className: string;
+  index: number;
+  stopCount: number;
+  stopTitle: string;
+  style?: CSSProperties;
+};
+
+function ItineraryStopMarker({
+  className,
+  index,
+  stopCount,
+  stopTitle,
+  style,
+}: ItineraryStopMarkerProps) {
+  const isFinalStop = index === stopCount - 1;
+  const markerStyle = {
+    ...style,
+    "--stop-color": getItineraryStopColor(index, isFinalStop),
+  } as CSSProperties;
+
+  return (
+    <span
+      className={className}
+      style={markerStyle}
+      aria-label={
+        isFinalStop ? `Final stop: ${stopTitle}` : `Stop ${index + 1}: ${stopTitle}`
+      }
+    >
+      {isFinalStop ? <Flag aria-hidden="true" /> : index + 1}
+    </span>
+  );
+}
+
 export function Today() {
   const nav = useNavigate();
+  const { activeSpace } = useWorkspace();
   const { adventures, loading, error, retry, createAdventure } =
     useAdventureStore();
+  const spaceName = activeSpace?.name ?? "Our Adventures";
   const [creating, setCreating] = useState(false);
   const upcoming = [...adventures]
     .filter((a) => !a.completed)
     .sort((a, b) => a.date.localeCompare(b.date));
   const next = upcoming[0];
+  const countdownKey = next
+    ? `${next.id}:${next.date}:${next.startTime}:${next.endTime}`
+    : undefined;
+  const countdownNow = useMinuteNow(countdownKey);
+  const countdown = next
+    ? formatAdventureCountdown(next.date, next.startTime, next.endTime, countdownNow)
+    : null;
   const createSheet = creating ? (
     <AdventureFormSheet
       title="Plan an Adventure"
@@ -85,7 +170,7 @@ export function Today() {
   if (loading)
     return (
       <div className="page today">
-        <PageHeader eyebrow="Our Adventures 💕" title="Your next adventure" />
+        <PageHeader eyebrow={spaceName} title="Your next adventure" />
         <div className="ideas-state" role="status">
           <span className="access-spinner" aria-hidden="true" />
           <h3>Gathering your Adventures…</h3>
@@ -95,7 +180,7 @@ export function Today() {
   if (error)
     return (
       <div className="page today">
-        <PageHeader eyebrow="Our Adventures 💕" title="Your next adventure" />
+        <PageHeader eyebrow={spaceName} title="Your next adventure" />
         <div className="ideas-state ideas-error" role="alert">
           <h3>Adventures could not be loaded</h3>
           <p>{error}</p>
@@ -109,7 +194,7 @@ export function Today() {
     return (
       <div className="page today">
         <PageHeader
-          eyebrow="Our Adventures 💕"
+          eyebrow={spaceName}
           title="Your next adventure"
           action={
             <button
@@ -135,7 +220,7 @@ export function Today() {
   return (
     <div className="page today">
       <PageHeader
-        eyebrow="Our Adventures 💕"
+        eyebrow={spaceName}
         title="Your next adventure"
         action={
           <button
@@ -150,17 +235,29 @@ export function Today() {
       <button className="hero" onClick={() => nav(`/adventures/${next.id}`)}>
         <img src={next.coverImage || "/vaughan-day.png"} alt="" />
         <div className="hero-shade" />
+        <span className="hero-label">NEXT ADVENTURE</span>
         <div className="hero-copy">
-          <span className="hero-label">NEXT ADVENTURE</span>
           <h2>{next.title}</h2>
           <p>
             {formatDate(next.date)} · {next.startTime}
           </p>
-          <span className="countdown">Coming up</span>
+          <span
+            className={`countdown ${countdown?.state ?? "invalid"}`}
+            aria-label={countdown?.accessibleLabel}
+          >
+            {countdown?.label ?? "Time to be confirmed"}
+          </span>
         </div>
         <Heart className="hero-heart" />
       </button>
-      <SectionTitle title="Up Next" action="See All" />
+      <SectionTitle
+        title="Up Next"
+        action={{
+          label: "See All",
+          to: "/calendar",
+          ariaLabel: "See all upcoming adventures",
+        }}
+      />
       <div className="list-card">
         {upcoming.slice(0, 4).map((a, i) => (
           <button
@@ -181,7 +278,10 @@ export function Today() {
           </button>
         ))}
       </div>
-      <SectionTitle title="New Ideas" action="See All" />
+      <SectionTitle
+        title="New Ideas"
+        action={{ label: "See All", to: "/ideas", ariaLabel: "See all ideas" }}
+      />
       <div className="idea-rail">
         {prototypeIdeas.slice(0, 3).map((i, n) => (
           <button key={i.id} onClick={() => nav("/ideas")}>
@@ -198,52 +298,222 @@ export function Today() {
     </div>
   );
 }
-function SectionTitle({ title, action }: { title: string; action?: string }) {
+
+function useMinuteNow(refreshKey?: string) {
+  const [, setMinuteTick] = useState(0);
+
+  useEffect(() => {
+    if (!refreshKey) return;
+
+    let intervalId: number | undefined;
+    const timeoutId = window.setTimeout(() => {
+      setMinuteTick((current) => current + 1);
+      intervalId = window.setInterval(
+        () => setMinuteTick((current) => current + 1),
+        60_000,
+      );
+    }, 60_000 - (Date.now() % 60_000));
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
+  }, [refreshKey]);
+
+  return new Date();
+}
+
+type SectionAction = {
+  label: string;
+  to: string;
+  ariaLabel: string;
+};
+
+function SectionTitle({
+  title,
+  action,
+}: {
+  title: string;
+  action?: SectionAction;
+}) {
   return (
     <div className="section-title">
       <h2>{title}</h2>
-      {action && <span>{action}</span>}
+      {action && (
+        <Link className="section-action" to={action.to} aria-label={action.ariaLabel}>
+          {action.label}
+        </Link>
+      )}
     </div>
   );
 }
+const advancedStatuses: IdeaFilterStatus[] = ["Idea", "Tentative", "Planned", "Confirmed"];
+const schedulingOptions: SchedulingFilter[] = ["Upcoming", "Unscheduled", "Past"];
+
+function toggleFilterValue<T>(values: T[], value: T) {
+  return values.includes(value)
+    ? values.filter((entry) => entry !== value)
+    : [...values, value];
+}
+
+function AdvancedFiltersPopover({
+  filters,
+  members,
+  onChange,
+}: {
+  filters: AdvancedIdeaFilters;
+  members: SpaceMember[];
+  onChange: (filters: AdvancedIdeaFilters) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const activeCount = countAdvancedIdeaFilters(filters);
+
+  useEffect(() => {
+    if (!open) return;
+    anchorRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!anchorRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="advanced-filter-anchor" ref={anchorRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="search-filter-button"
+        aria-label={`Advanced idea filters${activeCount ? `, ${activeCount} active` : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="idea-advanced-filters"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <SlidersHorizontal aria-hidden="true" />
+        {activeCount > 0 && <span aria-hidden="true">{activeCount}</span>}
+      </button>
+      {open && (
+        <div className="advanced-filter-popover" id="idea-advanced-filters" role="dialog" aria-label="Advanced idea filters">
+          <div className="advanced-filter-heading">
+            <strong>Filters</strong>
+            <button type="button" disabled={!activeCount} onClick={() => onChange({ ...emptyAdvancedIdeaFilters })}>
+              Clear filters
+            </button>
+          </div>
+          <fieldset>
+            <legend>Status</legend>
+            <div className="filter-options-grid">
+              {advancedStatuses.map((status) => (
+                <label className="filter-option" key={status}>
+                  <input type="checkbox" checked={filters.statuses.includes(status)} onChange={() => onChange({ ...filters, statuses: toggleFilterValue(filters.statuses, status) })} />
+                  <span>{status}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Added by</legend>
+            <div className="filter-options-list">
+              {members.length ? members.map((member) => (
+                <label className="filter-option" key={member.userId}>
+                  <input type="checkbox" checked={filters.addedByUserIds.includes(member.userId)} onChange={() => onChange({ ...filters, addedByUserIds: toggleFilterValue(filters.addedByUserIds, member.userId) })} />
+                  <span>{member.displayName || "Adventure Planner"}</span>
+                </label>
+              )) : <small>Member filters are unavailable.</small>}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Scheduling</legend>
+            <div className="filter-options-grid">
+              {schedulingOptions.map((scheduling) => (
+                <label className="filter-option" key={scheduling}>
+                  <input type="checkbox" checked={filters.scheduling.includes(scheduling)} onChange={() => onChange({ ...filters, scheduling: toggleFilterValue(filters.scheduling, scheduling) })} />
+                  <span>{scheduling}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Additional</legend>
+            <div className="filter-options-list">
+              <label className="filter-option">
+                <input type="checkbox" checked={filters.dateNightOnly} onChange={(event) => onChange({ ...filters, dateNightOnly: event.target.checked })} />
+                <span>Date Night only</span>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const blankIdea: Idea = {
   id: "",
   title: "",
   description: "",
-  category: "Dates",
+  category: "food-drink",
   status: "Idea",
   tags: [],
-  addedBy: "Jordan",
+  addedBy: "Adventure Planner",
+  isDateNight: false,
   createdAt: "2026-07-12",
 };
 export function Ideas() {
   const nav = useNavigate();
   const { ideas, loading, error, retry, saveIdea, setIdeaStatus } = useIdeas();
+  const { activeSpace } = useWorkspace();
   const { promoteIdeaToAdventure } = useAdventureStore();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Category | "All">("All");
+  const [filter, setFilter] = useState<IdeaCategoryFilter>("all");
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedIdeaFilters>({ ...emptyAdvancedIdeaFilters });
+  const [members, setMembers] = useState<SpaceMember[]>([]);
   const [editing, setEditing] = useState<Idea | null>(null);
   const [planning, setPlanning] = useState<Idea | null>(null);
+
+  useEffect(() => {
+    if (!activeSpace) return;
+    let active = true;
+    void loadSpaceMembers(activeSpace.id)
+      .then((nextMembers) => { if (active) setMembers(nextMembers); })
+      .catch(() => { if (active) setMembers([]); });
+    return () => { active = false; };
+  }, [activeSpace]);
+
   const counts = useMemo(
-    () =>
-      ideas.reduce<Record<string, number>>(
-        (a, i) => ((a[i.category] = (a[i.category] || 0) + 1), a),
-        {},
-      ),
+    () => ideas.reduce<Record<string, number>>((result, idea) => {
+      result[idea.category] = (result[idea.category] || 0) + 1;
+      if (idea.isDateNight) result["date-night"] = (result["date-night"] || 0) + 1;
+      return result;
+    }, { all: ideas.length }),
     [ideas],
   );
-  const shown = ideas.filter(
-    (i) =>
-      (filter === "All" || i.category === filter) &&
-      (i.title + i.description).toLowerCase().includes(query.toLowerCase()),
+  const shown = useMemo(
+    () => filterIdeas(ideas, filter, query, advancedFilters),
+    [advancedFilters, filter, ideas, query],
   );
-  const categories: (Category | "All")[] = [
-    "All",
-    "Dates",
-    "Food",
-    "Outdoors",
-    "Culture",
-    "At Home",
+  const creatorNames = useMemo(
+    () => new Map(members.map((member) => [member.userId, member.displayName])),
+    [members],
+  );
+  const categoryFilters: { id: IdeaCategoryFilter; label: string }[] = [
+    { id: "all", label: "All Ideas" },
+    { id: "date-night", label: "Date Night" },
+    ...primaryCategories,
   ];
   return (
     <div className="page ideas">
@@ -260,26 +530,32 @@ export function Ideas() {
         }
       />
       <div className="search">
-        <Search />
+        <Search aria-hidden="true" />
         <input
+          aria-label="Search shared ideas"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search shared ideas"
         />
-        <SlidersHorizontal />
+        <AdvancedFiltersPopover
+          filters={advancedFilters}
+          members={members}
+          onChange={setAdvancedFilters}
+        />
       </div>
       <div className="category-grid">
-        {categories.map((c, n) => {
-          const Icon = catIcon[c] || Sparkles;
+        {categoryFilters.map((category, n) => {
+          const Icon = catIcon[category.id] || Sparkles;
           return (
             <button
-              className={`category-tile t${n} ${filter === c ? "selected" : ""}`}
-              key={c}
-              onClick={() => setFilter(c)}
+              className={`category-tile t${n} ${filter === category.id ? "selected" : ""}`}
+              key={category.id}
+              aria-pressed={filter === category.id}
+              onClick={() => setFilter(category.id)}
             >
-              <Icon />
-              <span>{c === "All" ? "All Ideas" : c}</span>
-              <b>{c === "All" ? ideas.length : counts[c] || 0}</b>
+              <Icon aria-hidden="true" />
+              <span>{category.label}</span>
+              <b>{counts[category.id] || 0}</b>
             </button>
           );
         })}
@@ -315,7 +591,7 @@ export function Ideas() {
         <div className="ideas-state">
           <Search aria-hidden="true" />
           <h3>No matching ideas</h3>
-          <p>Try another search or category.</p>
+          <p>Try another search or adjust your filters.</p>
         </div>
       ) : (
         <div className="idea-list">
@@ -334,15 +610,16 @@ export function Ideas() {
                 }
               }}
             >
-              <div className={`idea-thumb ${i.category.replaceAll(" ", "-")}`}>
+              <div className={`idea-thumb ${i.category}`}>
                 <span>
                   {(
                     {
-                      Food: "🍝",
-                      Culture: "🏛️",
-                      Concerts: "🎸",
-                      "Camping & Travel": "🏕️",
-                      Errands: "🧺",
+                      "food-drink": "🍝",
+                      culture: "🏛️",
+                      "music-events": "🎸",
+                      "trips-getaways": "🏕️",
+                      "at-home": "🏡",
+                      outdoors: "🌲",
                     } as Record<string, string>
                   )[i.category] || "✨"}
                 </span>
@@ -358,7 +635,7 @@ export function Ideas() {
                   ) : (
                     <StatusChip status={i.status} />
                   )}
-                  <small>{i.addedBy} added</small>
+                  <small>Added by {i.addedByUserId ? creatorNames.get(i.addedByUserId) || i.addedBy : i.addedBy}</small>
                 </div>
               </div>
               <MoreHorizontal />
@@ -464,17 +741,8 @@ function IdeaSheet({
                 setDraft({ ...d, category: e.target.value as Category })
               }
             >
-              {[
-                "Dates",
-                "Food",
-                "Concerts",
-                "Outdoors",
-                "Camping & Travel",
-                "Culture",
-                "Errands",
-                "At Home",
-              ].map((x) => (
-                <option key={x}>{x}</option>
+              {primaryCategories.map((category) => (
+                <option key={category.id} value={category.id}>{category.label}</option>
               ))}
             </select>
           </label>
@@ -492,6 +760,15 @@ function IdeaSheet({
             </select>
           </label>
         </div>
+        <label className="date-night-field">
+          <input
+            type="checkbox"
+            checked={d.isDateNight}
+            onChange={(e) => setDraft({ ...d, isDateNight: e.target.checked })}
+          />
+          <Heart aria-hidden="true" />
+          Date Night
+        </label>
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}
@@ -558,26 +835,34 @@ type AdventureFormErrors = Partial<
 function AdventureFormSheet({
   title,
   idea,
+  initialPlan,
+  submitLabel = "Create Adventure",
+  savingLabel = "Creating…",
   onClose,
   onSubmit,
 }: {
   title: string;
   idea?: Idea;
+  initialPlan?: AdventurePlanInput;
+  submitLabel?: string;
+  savingLabel?: string;
   onClose: () => void;
   onSubmit: (plan: AdventurePlanInput) => Promise<void>;
 }) {
-  const [plan, setPlan] = useState<AdventurePlanInput>({
-    title: idea?.title || "",
-    description: idea?.description || "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    status: "Tentative",
-    location: idea?.optionalLocation || "",
-    notes: "",
-    category: idea?.category || "Dates",
-    coverImage: idea?.optionalImage,
-  });
+  const [plan, setPlan] = useState<AdventurePlanInput>(() =>
+    initialPlan ?? {
+      title: idea?.title || "",
+      description: idea?.description || "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      status: "Tentative",
+      location: idea?.optionalLocation || "",
+      notes: "",
+      category: idea?.category || "culture",
+      coverImage: idea?.optionalImage,
+    },
+  );
   const [errors, setErrors] = useState<AdventureFormErrors>({});
   const [saving, setSaving] = useState(false);
   const update = <K extends keyof AdventurePlanInput>(
@@ -602,7 +887,7 @@ function AdventureFormSheet({
         form:
           error instanceof Error
             ? error.message
-            : "We could not create this Adventure.",
+            : `We could not ${submitLabel.toLowerCase()}.`,
       });
     } finally {
       setSaving(false);
@@ -712,7 +997,7 @@ function AdventureFormSheet({
             Cancel
           </button>
           <button className="primary" type="submit" disabled={saving}>
-            {saving ? "Creating…" : "Create Adventure"}
+            {saving ? savingLabel : submitLabel}
           </button>
         </div>
       </form>
@@ -1147,6 +1432,184 @@ function LinksPanel({ links, loading, error, onRetry, onAdd, onEdit, onDelete }:
   </div>;
 }
 
+type AdventureMenuAction = "edit" | "cover" | "duplicate" | "delete";
+
+function AdventureActionsMenu({
+  disabled,
+  onAction,
+}: {
+  disabled: boolean;
+  onAction: (action: AdventureMenuAction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() =>
+      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus(),
+    );
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const choose = (action: AdventureMenuAction) => {
+    setOpen(false);
+    onAction(action);
+  };
+  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)',
+      ) ?? [],
+    );
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : event.key === "ArrowDown"
+            ? (current + 1) % items.length
+            : (current - 1 + items.length) % items.length;
+    items[next].focus();
+  };
+
+  return (
+    <div className="adventure-actions" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        className="more"
+        aria-label="Adventure actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="adventure-actions-menu"
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          className="adventure-actions-menu"
+          id="adventure-actions-menu"
+          role="menu"
+          aria-label="Adventure actions"
+          onKeyDown={onMenuKeyDown}
+        >
+          <button role="menuitem" onClick={() => choose("edit")}>
+            <Pencil /> Edit adventure
+          </button>
+          <button role="menuitem" onClick={() => choose("cover")}>
+            <ImagePlus /> Change cover photo
+          </button>
+          <button role="menuitem" onClick={() => choose("duplicate")}>
+            <Copy /> Duplicate adventure
+          </button>
+          <div className="adventure-actions-divider" role="separator" />
+          <button
+            className="destructive"
+            role="menuitem"
+            onClick={() => choose("delete")}
+          >
+            <Trash2 /> Delete adventure
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CoverPhotoSheet({
+  currentCover,
+  onClose,
+  onSave,
+}: {
+  currentCover?: string;
+  onClose: () => void;
+  onSave: (coverImage: string) => Promise<void>;
+}) {
+  const [coverImage, setCoverImage] = useState(currentCover ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const trimmed = coverImage.trim();
+  const isSupported =
+    !trimmed || /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/");
+  const preview = isSupported && trimmed ? trimmed : currentCover || "/vaughan-day.png";
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!isSupported) {
+      setError("Enter an http(s) image URL or an app image path beginning with /.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(trimmed);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "We could not update the cover photo.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Sheet open title="Change cover photo" onClose={onClose}>
+      <form className="cover-photo-form" onSubmit={submit} noValidate>
+        <img src={preview} alt="Adventure cover preview" />
+        <label>
+          Image URL
+          <input
+            type="url"
+            value={coverImage}
+            onChange={(event) => {
+              setCoverImage(event.target.value);
+              setError(null);
+            }}
+            placeholder="https://example.com/adventure.jpg"
+            aria-invalid={!!error}
+          />
+        </label>
+        <small>
+          This app currently stores cover URLs. Clear the field to use the default cover.
+        </small>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="sheet-actions">
+          <button className="secondary" type="button" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button className="primary" type="submit" disabled={saving}>
+            {saving ? "Saving…" : "Save cover"}
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  );
+}
+
 export function AdventureDetail() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -1176,7 +1639,12 @@ export function AdventureDetail() {
     editAdventureLink,
     deleteAdventureLink,
     setAdventureCompleted,
+    updateAdventure,
+    updateAdventureCover,
+    duplicateAdventure,
+    deleteAdventure,
   } = useAdventureStore();
+  const { activeSpace, memberships } = useWorkspace();
   const a = adventures.find((x) => x.id === id);
   const adventureId = a?.id;
   const [tab, setTab] = useState("Itinerary");
@@ -1192,6 +1660,13 @@ export function AdventureDetail() {
   );
   const [completionSaving, setCompletionSaving] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   useEffect(() => {
     if (!adventureId) return;
     void loadAdventureStops(adventureId);
@@ -1225,6 +1700,31 @@ export function AdventureDetail() {
   const orderedStops = [...a.stops].sort(
     (first, second) => first.sortOrder - second.sortOrder,
   );
+  const canMutate = memberships.some(
+    (membership) => membership.spaceId === activeSpace?.id,
+  );
+  const handleAdventureAction = (action: AdventureMenuAction) => {
+    setActionError(null);
+    if (action === "edit") setEditOpen(true);
+    if (action === "cover") setCoverOpen(true);
+    if (action === "delete") {
+      setDeleteError(null);
+      setDeleteOpen(true);
+    }
+    if (action === "duplicate") {
+      setDuplicating(true);
+      void duplicateAdventure(a.id)
+        .then((duplicate) => nav(`/adventures/${duplicate.id}`))
+        .catch((nextError) =>
+          setActionError(
+            nextError instanceof Error
+              ? nextError.message
+              : "We could not duplicate this adventure.",
+          ),
+        )
+        .finally(() => setDuplicating(false));
+    }
+  };
   return (
     <div className="detail">
       <div className="detail-cover">
@@ -1232,9 +1732,12 @@ export function AdventureDetail() {
         <button className="back" onClick={() => nav(-1)} aria-label="Go back">
           <ChevronLeft />
         </button>
-        <button className="more" aria-label="More options">
-          <MoreHorizontal />
-        </button>
+        {canMutate && (
+          <AdventureActionsMenu
+            disabled={duplicating || deleting}
+            onAction={handleAdventureAction}
+          />
+        )}
       </div>
       <section className="detail-sheet">
         <button
@@ -1246,10 +1749,17 @@ export function AdventureDetail() {
         </button>
         <h1>{a.title}</h1>
         {a.completed && <span className="completed-badge"><Check /> Completed</span>}
+        {duplicating && <p className="action-feedback" role="status">Duplicating adventure…</p>}
+        {actionError && <p className="form-error action-feedback" role="alert">{actionError}</p>}
         <p className="detail-date">
           {formatDate(a.date)}
           <br />
-          {a.startTime} – {a.endTime}
+          {formatAdventureDateTimeRange({
+            startDate: a.date,
+            startTime: a.startTime,
+            endDate: a.date,
+            endTime: a.endTime,
+          })}
         </p>
         <div className="detail-meta">
           <MapPin /> {a.location}
@@ -1302,17 +1812,17 @@ export function AdventureDetail() {
                 <>
                   {orderedStops.length > 1 && <div className="route-line" />}
                   {orderedStops.map((stop, index) => (
-                    <span
+                    <ItineraryStopMarker
                       className="pin dynamic-pin"
                       key={stop.id}
+                      index={index}
+                      stopCount={orderedStops.length}
+                      stopTitle={stop.title}
                       style={{
                         left: `${10 + (index / Math.max(orderedStops.length - 1, 1)) * 78}%`,
                         top: `${index % 2 ? 58 : 26}%`,
                       }}
-                      aria-label={`Stop ${index + 1}: ${stop.title}`}
-                    >
-                      {index + 1}
-                    </span>
+                    />
                   ))}
                   <b>{orderedStops.length}-stop route</b>
                 </>
@@ -1327,7 +1837,12 @@ export function AdventureDetail() {
               <div className="stops">
                 {orderedStops.map((stop, index) => (
                   <article key={stop.id}>
-                    <span className="stop-num">{index + 1}</span>
+                    <ItineraryStopMarker
+                      className="stop-num"
+                      index={index}
+                      stopCount={orderedStops.length}
+                      stopTitle={stop.title}
+                    />
                     <div className="stop-main">
                       <h3>{stop.title}</h3>
                       <p>{stop.location || "Location to be decided"}</p>
@@ -1484,6 +1999,96 @@ export function AdventureDetail() {
             </div>
           </Sheet>
         )}
+        {editOpen && (
+          <AdventureFormSheet
+            title="Edit adventure"
+            initialPlan={{
+              title: a.title,
+              description: a.description,
+              date: a.date,
+              startTime: timeToInput(a.startTime),
+              endTime: timeToInput(a.endTime),
+              status: a.status === "Tentative" ? "Tentative" : "Confirmed",
+              location: a.location === "Location to be decided" ? "" : a.location,
+              notes: a.notes,
+              category: a.category,
+              coverImage: a.coverImage,
+            }}
+            submitLabel="Save changes"
+            savingLabel="Saving…"
+            onClose={() => setEditOpen(false)}
+            onSubmit={async (plan) => {
+              await updateAdventure(a.id, plan);
+              setEditOpen(false);
+            }}
+          />
+        )}
+        {coverOpen && (
+          <CoverPhotoSheet
+            currentCover={a.coverImage}
+            onClose={() => setCoverOpen(false)}
+            onSave={async (coverImage) => {
+              await updateAdventureCover(a.id, coverImage);
+              setCoverOpen(false);
+            }}
+          />
+        )}
+        {deleteOpen && (
+          <Sheet
+            open
+            title="Delete adventure?"
+            onClose={() => {
+              if (!deleting) setDeleteOpen(false);
+            }}
+          >
+            <div className="delete-adventure-confirmation">
+              <p>
+                <strong>“{a.title}”</strong> will be permanently deleted. This cannot be undone.
+              </p>
+              <p>The following related content will also be deleted:</p>
+              <ul>
+                <li>{a.stops.length} itinerary {a.stops.length === 1 ? "stop" : "stops"}</li>
+                <li>Adventure notes</li>
+                <li>{a.links.length} saved {a.links.length === 1 ? "link" : "links"}</li>
+                <li>{a.checklist.length} checklist {a.checklist.length === 1 ? "item" : "items"}</li>
+              </ul>
+              {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+              <div className="sheet-actions">
+                <button
+                  className="secondary"
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setDeleteOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="danger-button"
+                  type="button"
+                  disabled={deleting}
+                  onClick={async () => {
+                    if (deleting) return;
+                    setDeleting(true);
+                    setDeleteError(null);
+                    try {
+                      await deleteAdventure(a.id);
+                      nav("/calendar");
+                    } catch (nextError) {
+                      setDeleteError(
+                        nextError instanceof Error
+                          ? nextError.message
+                          : "We could not delete this adventure.",
+                      );
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  {deleting ? "Deleting…" : "Delete adventure"}
+                </button>
+              </div>
+            </div>
+          </Sheet>
+        )}
         <button
           className={`complete-button ${a.completed ? "done" : ""}`}
           disabled={completionSaving}
@@ -1512,11 +2117,23 @@ export function AdventureDetail() {
 export function Memories() {
   const nav = useNavigate();
   const { adventures, loading, error, retry } = useAdventureStore();
-  const done = [...adventures]
+  const done = useMemo(() => [...adventures]
     .filter((adventure) => adventure.completed)
     .sort((first, second) =>
       (second.completedAt || second.date).localeCompare(first.completedAt || first.date),
-    );
+    ), [adventures]);
+  const [summaries, setSummaries] = useState<Record<string, MemorySummary>>({});
+  const adventureIds = done.map((adventure) => adventure.id).join(",");
+  useEffect(() => {
+    let active = true;
+    if (!adventureIds) {
+      return () => { active = false; };
+    }
+    void loadMemorySummaries(adventureIds.split(","))
+      .then((next) => { if (active) setSummaries(next); })
+      .catch(() => { if (active) setSummaries({}); });
+    return () => { active = false; };
+  }, [adventureIds]);
   return (
     <div className="page memories">
       <PageHeader eyebrow="The days worth keeping" title="Memories" />
@@ -1534,12 +2151,19 @@ export function Memories() {
       <div className="memory-grid">
         {!loading && !error && done.length ? (
           done.map((a) => (
-            <button className="memory-card" key={a.id} onClick={() => nav(`/adventures/${a.id}`)}>
+            <button className="memory-card" key={a.id} onClick={() => nav(`/memories/${a.id}`)}>
+              <div className="memory-art-cover">
+                {summaries[a.id]?.coverUrl || a.coverImage ? (
+                  <img src={summaries[a.id]?.coverUrl || a.coverImage} alt="" />
+                ) : (
+                  <span aria-hidden="true">🌅</span>
+                )}
+              </div>
               <div className="memory-art">🌅</div>
               <small>{formatDate(a.date)}</small>
               <h3>{a.title}</h3>
-              <p>{a.notes || a.description || a.location}</p>
-              <span>{a.location}</span>
+              <p>{summaries[a.id]?.reflection || a.notes || a.description || a.location}</p>
+              <span>{a.location}{summaries[a.id]?.photoCount ? ` · ${summaries[a.id].photoCount} ${summaries[a.id].photoCount === 1 ? "photo" : "photos"}` : " · Add photos"}</span>
             </button>
           ))
         ) : !loading && !error ? (

@@ -41,6 +41,7 @@ type WorkspaceState = {
   refreshMemberships: (preferredSpaceId?: string) => Promise<void>;
   selectSpace: (spaceId: string) => void;
   updateDisplayName: (name: string) => Promise<void>;
+  updateSpaceName: (name: string) => Promise<void>;
   createSpace: (name: string) => Promise<void>;
 };
 
@@ -178,14 +179,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const displayName = name.trim();
         if (!displayName)
           throw new Error("Enter the name you would like to use.");
-        const { error: updateError } = await supabase
+        if (displayName.length > 50)
+          throw new Error("Display names can be up to 50 characters.");
+        const { data, error: updateError } = await supabase
           .from("profiles")
           .update({ display_name: displayName })
-          .eq("id", user.id);
-        if (updateError)
+          .eq("id", user.id)
+          .select("display_name")
+          .single();
+        if (updateError || !data)
           throw new Error("We could not save your name. Please try again.");
+        const savedDisplayName = data.display_name?.trim() || displayName;
         setProfile((current) =>
-          current ? { ...current, displayName } : current,
+          current ? { ...current, displayName: savedDisplayName } : current,
+        );
+      },
+      updateSpaceName: async (name) => {
+        if (!user || !activeSpace)
+          throw new Error("Open a shared space before updating its name.");
+        const spaceName = name.trim();
+        if (!spaceName) throw new Error("Enter a name for your shared space.");
+        if (spaceName.length > 60)
+          throw new Error("Shared-space names can be up to 60 characters.");
+        const { data, error: updateError } = await supabase
+          .from("spaces")
+          .update({ name: spaceName })
+          .eq("id", activeSpace.id)
+          .select("id, name, created_by")
+          .single();
+        if (updateError || !data)
+          throw new Error("We could not save the shared-space name. Please try again.");
+        const nextSpace: SharedSpace = {
+          id: data.id,
+          name: data.name,
+          createdBy: data.created_by,
+        };
+        setSpaces((current) =>
+          current.map((space) => space.id === nextSpace.id ? nextSpace : space),
+        );
+        setActiveSpace((current) =>
+          current?.id === nextSpace.id ? nextSpace : current,
         );
       },
       createSpace: async (name) => {

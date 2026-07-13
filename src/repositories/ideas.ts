@@ -1,5 +1,7 @@
 import { supabase } from "../lib/supabase";
-import type { Category, Idea, IdeaStatus } from "../types";
+import { isLegacyDateNightCategory, normalizeCategory } from "../idea-model";
+import { resolveMemberDisplayName } from "../member-names";
+import type { Idea, IdeaStatus } from "../types";
 
 type DatabaseIdeaStatus = "idea" | "tentative" | "confirmed";
 
@@ -18,6 +20,11 @@ type IdeaRow = {
   linked_adventure_id: string | null;
   created_at: string;
   updated_at: string;
+  is_date_night: boolean | null;
+  linked_adventure:
+    | { event_date: string | null }
+    | { event_date: string | null }[]
+    | null;
   added_by_profile:
     { display_name: string | null } | { display_name: string | null }[] | null;
 };
@@ -32,6 +39,7 @@ export type IdeaDraft = Pick<
   | "optionalLink"
   | "optionalImage"
   | "optionalLocation"
+  | "isDateNight"
 >;
 
 const ideaColumns = `
@@ -49,6 +57,8 @@ const ideaColumns = `
   linked_adventure_id,
   created_at,
   updated_at,
+  is_date_night,
+  linked_adventure:adventures!ideas_linked_adventure_id_fkey(event_date),
   added_by_profile:profiles!ideas_added_by_fkey(display_name)
 `;
 
@@ -68,16 +78,24 @@ function mapIdea(row: IdeaRow): Idea {
   const addedByProfile = Array.isArray(row.added_by_profile)
     ? row.added_by_profile[0]
     : row.added_by_profile;
+  const linkedAdventure = Array.isArray(row.linked_adventure)
+    ? row.linked_adventure[0]
+    : row.linked_adventure;
   return {
     id: row.id,
     spaceId: row.space_id,
     title: row.title,
     description: row.description ?? "",
-    category: row.category as Category,
+    category: normalizeCategory(row.category),
     status: databaseToUiStatus[row.status],
     tags: row.tags,
-    addedBy: addedByProfile?.display_name?.trim() || "Adventure planner",
-    addedById: row.added_by,
+    addedBy: resolveMemberDisplayName({
+      displayName: addedByProfile?.display_name,
+    }),
+    addedByUserId: row.added_by,
+    isDateNight:
+      row.is_date_night === true || isLegacyDateNightCategory(row.category),
+    scheduledFor: linkedAdventure?.event_date ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     optionalLink: row.optional_link ?? undefined,
@@ -92,6 +110,7 @@ function writableFields(draft: IdeaDraft) {
     title: draft.title.trim(),
     description: draft.description.trim() || null,
     category: draft.category,
+    is_date_night: draft.isDateNight,
     status: uiToDatabaseStatus[draft.status],
     tags: draft.tags,
     optional_link: draft.optionalLink?.trim() || null,

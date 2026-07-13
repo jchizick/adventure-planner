@@ -5,6 +5,7 @@ import { AppShell } from "./components";
 import { AdventureProvider } from "./context";
 import { IdeasProvider } from "./ideas";
 import { AdventureDetail, Calendar, Ideas, Memories, Today } from "./pages";
+import { MemoryDetail } from "./memory-detail";
 import { InvitePage, MembersSettings } from "./members";
 import { WorkspaceProvider } from "./workspace";
 
@@ -23,6 +24,7 @@ function ProtectedApplication() {
                 <Route path="/ideas" element={<Ideas />} />
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/memories" element={<Memories />} />
+                <Route path="/memories/:adventureId" element={<MemoryDetail />} />
                 <Route path="/settings/members" element={<MembersSettings />} />
                 <Route path="/adventures/:id" element={<AdventureDetail />} />
                 <Route path="*" element={<Navigate to="/today" replace />} />

@@ -25,7 +25,9 @@ export function AppShell() {
   const { activeSpace, profile } = useWorkspace();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const detail = loc.pathname.startsWith("/adventures/");
+  const adventureDetail = loc.pathname.startsWith("/adventures/");
+  const memoryDetail = loc.pathname.startsWith("/memories/");
+  const detail = adventureDetail || memoryDetail;
   const handleSignOut = async () => {
     setSigningOut(true);
     setSignOutError(null);
@@ -75,23 +77,28 @@ export function AppShell() {
         </div>
       </aside>
       <div className="mobile-account">
-        <span>{activeSpace?.name}</span>
-        <NavLink to="/settings/members" aria-label="People and invitations">
-          <Users aria-hidden="true" />
-        </NavLink>
-        <button
-          onClick={() => void handleSignOut()}
-          disabled={signingOut}
-          aria-label="Sign out"
-        >
-          <LogOut aria-hidden="true" />
-        </button>
+        <div className="mobile-space-title">
+          <span>Our Adventures <Heart aria-hidden="true" fill="currentColor" /></span>
+          <strong>{activeSpace?.name ?? "Our Adventures"}</strong>
+        </div>
+        <div className="mobile-account-actions">
+          <NavLink to="/settings/members" aria-label="People and invitations">
+            <Users aria-hidden="true" />
+          </NavLink>
+          <button
+            onClick={() => void handleSignOut()}
+            disabled={signingOut}
+            aria-label="Sign out"
+          >
+            <LogOut aria-hidden="true" />
+          </button>
+        </div>
         {signOutError && <small role="alert">{signOutError}</small>}
       </div>
       <main className={detail ? "detail-main" : ""}>
         <Outlet />
       </main>
-      {!detail && (
+      {!adventureDetail && (
         <nav className="bottom-nav">
           {nav.map(([to, label, Icon]) => (
             <NavLink key={to} to={to}>

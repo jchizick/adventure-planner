@@ -11,8 +11,12 @@ import {
 import { useAuth } from "./auth";
 import {
   createAdventure as createAdventureRow,
+  deleteAdventure as deleteAdventureRow,
+  duplicateAdventure as duplicateAdventureRow,
   loadAdventures,
   promoteIdea as promoteIdeaRow,
+  updateAdventure as updateAdventureRow,
+  updateAdventureCover as updateAdventureCoverRow,
   updateAdventureFavorite,
   updateAdventureCompletion,
   updateAdventureNotes,
@@ -25,6 +29,7 @@ import {
   updateStop,
   type StopDraft,
 } from "./repositories/adventure-stops";
+import { insertStopChronologically, timeToMinutes } from "./itinerary";
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -62,6 +67,10 @@ type Store = {
     ideaId: string,
     plan: AdventurePlanInput,
   ) => Promise<Adventure>;
+  updateAdventure: (id: string, plan: AdventurePlanInput) => Promise<void>;
+  updateAdventureCover: (id: string, coverImage: string) => Promise<void>;
+  duplicateAdventure: (id: string) => Promise<Adventure>;
+  deleteAdventure: (id: string) => Promise<void>;
   loadAdventureStops: (adventureId: string) => Promise<void>;
   addAdventureStop: (adventureId: string, stop: StopDraft) => Promise<void>;
   updateAdventureStop: (
@@ -194,7 +203,7 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
         date: adventure.date,
         startTime: adventure.startTime,
         endTime: adventure.endTime || undefined,
-        category: adventure.category || "Dates",
+        category: adventure.category || "culture",
         status: adventure.status,
         adventureId: adventure.id,
       })),
@@ -247,34 +256,95 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
           creatingRef.current = false;
         }
       },
+      updateAdventure: async (id, plan) => {
+        if (!user || !activeSpace)
+          throw new Error("Open your shared space and try again.");
+        const current = adventures.find((adventure) => adventure.id === id);
+        if (!current) throw new Error("Adventure not found.");
+        replaceAdventure(
+          await updateAdventureRow(
+            activeSpace.id,
+            id,
+            user.id,
+            plan,
+            current.completed,
+          ),
+        );
+      },
+      updateAdventureCover: async (id, coverImage) => {
+        if (!user || !activeSpace)
+          throw new Error("Open your shared space and try again.");
+        replaceAdventure(
+          await updateAdventureCoverRow(activeSpace.id, id, user.id, coverImage),
+        );
+      },
+      duplicateAdventure: async (id) => {
+        if (!activeSpace)
+          throw new Error("Open your shared space and try again.");
+        const duplicate = await duplicateAdventureRow(activeSpace.id, id);
+        setAdventures((current) => [...current, duplicate]);
+        return duplicate;
+      },
+      deleteAdventure: async (id) => {
+        if (!activeSpace)
+          throw new Error("Open your shared space and try again.");
+        await deleteAdventureRow(activeSpace.id, id);
+        setAdventures((current) =>
+          current.filter((adventure) => adventure.id !== id),
+        );
+      },
       loadAdventureStops,
       addAdventureStop: async (adventureId, stop) => {
         const adventure = adventures.find((item) => item.id === adventureId);
         if (!adventure) throw new Error("Adventure not found.");
+        const nextSortOrder =
+          Math.max(0, ...adventure.stops.map((item) => item.sortOrder)) + 1;
         const created = await createStop(
           adventureId,
-          adventure.stops.length + 1,
+          nextSortOrder,
           stop,
         );
+        const next = insertStopChronologically(adventure.stops, created);
+        try {
+          await reorderStops(
+            adventureId,
+            next.map((item) => item.id),
+          );
+        } catch (error) {
+          await deleteStop(adventureId, created.id).catch(() => undefined);
+          throw error;
+        }
         setAdventures((current) =>
           current.map((item) =>
             item.id === adventureId
-              ? { ...item, stops: [...item.stops, created] }
+              ? { ...item, stops: next }
               : item,
           ),
         );
       },
       updateAdventureStop: async (adventureId, stopId, stop) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const existingStop = adventure.stops.find((item) => item.id === stopId);
+        if (!existingStop) throw new Error("Stop not found.");
         const saved = await updateStop(adventureId, stopId, stop);
+        const startTimeChanged =
+          timeToMinutes(existingStop.startTime) !== timeToMinutes(saved.startTime);
+        const next = startTimeChanged
+          ? insertStopChronologically(
+              adventure.stops.filter((item) => item.id !== stopId),
+              saved,
+            )
+          : adventure.stops.map((item) => (item.id === stopId ? saved : item));
+        if (startTimeChanged)
+          await reorderStops(
+            adventureId,
+            next.map((item) => item.id),
+          );
         setAdventures((current) =>
           current.map((item) =>
             item.id === adventureId
-              ? {
-                  ...item,
-                  stops: item.stops.map((currentStop) =>
-                    currentStop.id === stopId ? saved : currentStop,
-                  ),
-                }
+              ? { ...item, stops: next }
               : item,
           ),
         );

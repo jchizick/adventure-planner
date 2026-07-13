@@ -40,6 +40,7 @@ function toDraft(idea: Idea): IdeaDraft {
     optionalLink: idea.optionalLink,
     optionalImage: idea.optionalImage,
     optionalLocation: idea.optionalLocation,
+    isDateNight: idea.isDateNight,
   };
 }
 

@@ -1,9 +1,10 @@
 import { supabase } from "../lib/supabase";
+import { normalizeCategory } from "../idea-model";
+import { resolveMemberDisplayName } from "../member-names";
 import type {
   Adventure,
   AdventurePlanInput,
   AdventureStatus,
-  Category,
 } from "../types";
 
 type DatabaseAdventureStatus = "tentative" | "confirmed" | "completed";
@@ -55,7 +56,7 @@ const uiToDatabaseStatus: Record<
 
 function profileName(join: ProfileJoin | undefined) {
   const profile = Array.isArray(join) ? join[0] : join;
-  return profile?.display_name?.trim() || "Adventure planner";
+  return resolveMemberDisplayName({ displayName: profile?.display_name });
 }
 
 function displayTime(value: string | null) {
@@ -76,7 +77,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     status: databaseToUiStatus[row.status],
     coverImage: row.cover_image_url ?? undefined,
     location: row.location ?? "Location to be decided",
-    category: (row.category as Category | null) ?? "Dates",
+    category: normalizeCategory(row.category ?? "culture"),
     sourceIdeaId: row.source_idea_id ?? undefined,
     stops: [],
     notes: row.notes ?? "",
@@ -132,7 +133,7 @@ export async function createAdventure(
       space_id: spaceId,
       title: plan.title.trim(),
       description: plan.description.trim() || null,
-      category: plan.category ?? "Dates",
+      category: plan.category ?? "culture",
       status: uiToDatabaseStatus[plan.status],
       event_date: plan.date,
       start_time: plan.startTime,
@@ -147,6 +148,87 @@ export async function createAdventure(
     .single();
   if (error) throw repositoryError("create", error);
   return mapAdventure(data as unknown as AdventureRow);
+}
+
+export async function updateAdventure(
+  spaceId: string,
+  adventureId: string,
+  userId: string,
+  plan: AdventurePlanInput,
+  preserveCompletion: boolean,
+): Promise<Adventure> {
+  const payload: Record<string, unknown> = {
+    title: plan.title.trim(),
+    description: plan.description.trim() || null,
+    category: plan.category ?? "culture",
+    event_date: plan.date,
+    start_time: plan.startTime,
+    end_time: plan.endTime || null,
+    location: plan.location.trim() || null,
+    notes: plan.notes.trim() || null,
+    cover_image_url: plan.coverImage?.trim() || null,
+    updated_by: userId,
+  };
+  if (!preserveCompletion) payload.status = uiToDatabaseStatus[plan.status];
+
+  const { data, error } = await supabase
+    .from("adventures")
+    .update(payload)
+    .eq("space_id", spaceId)
+    .eq("id", adventureId)
+    .select(adventureColumns)
+    .single();
+  if (error) throw repositoryError("update", error);
+  return mapAdventure(data as unknown as AdventureRow);
+}
+
+export async function updateAdventureCover(
+  spaceId: string,
+  adventureId: string,
+  userId: string,
+  coverImage: string,
+): Promise<Adventure> {
+  const { data, error } = await supabase
+    .from("adventures")
+    .update({
+      cover_image_url: coverImage.trim() || null,
+      updated_by: userId,
+    })
+    .eq("space_id", spaceId)
+    .eq("id", adventureId)
+    .select(adventureColumns)
+    .single();
+  if (error) throw repositoryError("update the cover for", error);
+  return mapAdventure(data as unknown as AdventureRow);
+}
+
+export async function duplicateAdventure(
+  spaceId: string,
+  adventureId: string,
+): Promise<Adventure> {
+  const { data, error } = await supabase.rpc("duplicate_adventure", {
+    p_adventure_id: adventureId,
+  });
+  if (error) throw repositoryError("duplicate", error);
+  const duplicate = await loadAdventure(spaceId, data as string);
+  if (!duplicate)
+    throw new Error("The Adventure was duplicated but could not be opened.");
+  return duplicate;
+}
+
+export async function deleteAdventure(
+  spaceId: string,
+  adventureId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("adventures")
+    .delete()
+    .eq("space_id", spaceId)
+    .eq("id", adventureId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data)
+    throw repositoryError("delete", error ?? { message: "Adventure not found" });
 }
 
 export async function promoteIdea(

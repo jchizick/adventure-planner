@@ -1,14 +1,8 @@
+import type { Category } from "./idea-model";
+
 export type IdeaStatus = "Idea" | "Tentative" | "Confirmed";
 export type AdventureStatus = "Tentative" | "Confirmed" | "Completed";
-export type Category =
-  | "Dates"
-  | "Food"
-  | "Concerts"
-  | "Outdoors"
-  | "Camping & Travel"
-  | "Culture"
-  | "Errands"
-  | "At Home";
+export type { Category } from "./idea-model";
 export interface Idea {
   id: string;
   title: string;
@@ -17,7 +11,9 @@ export interface Idea {
   status: IdeaStatus;
   tags: string[];
   addedBy: string;
-  addedById?: string;
+  addedByUserId?: string;
+  isDateNight: boolean;
+  scheduledFor?: string;
   spaceId?: string;
   createdAt: string;
   updatedAt?: string;
@@ -70,6 +66,35 @@ export interface Adventure {
   completed: boolean;
   completedAt?: string;
   favorite: boolean;
+}
+export interface MemoryPhoto {
+  id: string;
+  adventureId: string;
+  uploadedByUserId: string;
+  uploadedBy: string;
+  storagePath: string;
+  caption?: string;
+  sortOrder: number;
+  createdAt: string;
+  width?: number;
+  height?: number;
+  fileSize: number;
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  url: string;
+}
+export interface AdventureMemory {
+  id?: string;
+  adventureId: string;
+  reflection: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  photos: MemoryPhoto[];
+}
+export interface MemorySummary {
+  adventureId: string;
+  reflection: string;
+  photoCount: number;
+  coverUrl?: string;
 }
 export interface CalendarEvent {
   id: string;
