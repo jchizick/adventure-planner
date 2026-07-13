@@ -1,155 +1,328 @@
 import {
   createContext,
-  useContext,
-  useMemo,
-  useState,
   type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
+import { useAuth } from "./auth";
 import {
-  adventures as seedAdventures,
-  calendarEvents as seedCalendarEvents,
-} from "./data";
-import type { Adventure, CalendarEvent, AdventureStop } from "./types";
+  createAdventure as createAdventureRow,
+  loadAdventures,
+  promoteIdea as promoteIdeaRow,
+  updateAdventureFavorite,
+  updateAdventureNotes,
+} from "./repositories/adventures";
+import {
+  createStop,
+  deleteStop,
+  loadStops,
+  reorderStops,
+  updateStop,
+  type StopDraft,
+} from "./repositories/adventure-stops";
+import type {
+  Adventure,
+  AdventurePlanInput,
+  AdventureStop,
+  CalendarEvent,
+} from "./types";
+import { useWorkspace } from "./workspace";
+
 type Store = {
   adventures: Adventure[];
   calendarEvents: CalendarEvent[];
   calendarTargetDate: string | null;
-  addAdventureStop: (
-    adventureId: string,
-    stop: Omit<AdventureStop, "id" | "sortOrder">,
-  ) => AdventureStop;
+  loading: boolean;
+  error: string | null;
+  stopsLoading: boolean;
+  stopsError: string | null;
+  retry: () => Promise<void>;
+  createAdventure: (plan: AdventurePlanInput) => Promise<Adventure>;
+  promoteIdeaToAdventure: (
+    ideaId: string,
+    plan: AdventurePlanInput,
+  ) => Promise<Adventure>;
+  loadAdventureStops: (adventureId: string) => Promise<void>;
+  addAdventureStop: (adventureId: string, stop: StopDraft) => Promise<void>;
   updateAdventureStop: (
     adventureId: string,
     stopId: string,
-    stop: Omit<AdventureStop, "id" | "sortOrder">,
-  ) => void;
-  deleteAdventureStop: (adventureId: string, stopId: string) => void;
+    stop: StopDraft,
+  ) => Promise<void>;
+  deleteAdventureStop: (adventureId: string, stopId: string) => Promise<void>;
   reorderAdventureStops: (
     adventureId: string,
     stopId: string,
     direction: -1 | 1,
-  ) => void;
-  toggleChecklist: (adventureId: string, itemId: string) => void;
-  addChecklist: (adventureId: string, label: string) => void;
-  toggleFavorite: (id: string) => void;
-  completeAdventure: (id: string) => void;
+  ) => Promise<void>;
+  toggleFavorite: (id: string) => Promise<void>;
+  saveNotes: (id: string, notes: string) => Promise<void>;
 };
-const C = createContext<Store | null>(null);
-const normalizeStops = (stops: AdventureStop[]) =>
-  [...stops]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((stop, index) => ({ ...stop, sortOrder: index + 1 }));
+
+const AdventureContext = createContext<Store | null>(null);
+
 export function AdventureProvider({ children }: { children: ReactNode }) {
-  const [adventures, setAdventures] = useState(seedAdventures);
-  const calendarTargetDate = null;
-  const calendarEvents = useMemo(
-    () => [
-      ...seedCalendarEvents,
-      ...adventures
-        .filter((a) => a.sourceIdeaId)
-        .map<CalendarEvent>((a) => ({
-          id: `event-${a.id}`,
-          title: a.title,
-          subtitle: a.location || "Adventure",
-          date: a.date,
-          startTime: a.startTime,
-          endTime: a.endTime,
-          category: a.category || "Dates",
-          status: a.status,
-          adventureId: a.id,
-        })),
-    ],
+  const { user } = useAuth();
+  const { activeSpace } = useWorkspace();
+  const [adventures, setAdventures] = useState<Adventure[]>([]);
+  const [calendarTargetDate, setCalendarTargetDate] = useState<string | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stopsLoading, setStopsLoading] = useState(false);
+  const [stopsError, setStopsError] = useState<string | null>(null);
+  const creatingRef = useRef(false);
+
+  const load = useCallback(async () => {
+    if (!activeSpace) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setAdventures(await loadAdventures(activeSpace.id));
+    } catch (nextError) {
+      setAdventures([]);
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "We could not load your Adventures. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeSpace]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => void load());
+    return () => window.cancelAnimationFrame(frame);
+  }, [load]);
+
+  const replaceAdventure = useCallback((next: Adventure) => {
+    setAdventures((current) =>
+      current.map((adventure) =>
+        adventure.id === next.id
+          ? { ...next, stops: adventure.stops }
+          : adventure,
+      ),
+    );
+  }, []);
+
+  const loadAdventureStops = useCallback(async (adventureId: string) => {
+    setStopsLoading(true);
+    setStopsError(null);
+    try {
+      const stops = await loadStops(adventureId);
+      setAdventures((current) =>
+        current.map((adventure) =>
+          adventure.id === adventureId ? { ...adventure, stops } : adventure,
+        ),
+      );
+    } catch (nextError) {
+      setStopsError(
+        nextError instanceof Error
+          ? nextError.message
+          : "We could not load this itinerary.",
+      );
+    } finally {
+      setStopsLoading(false);
+    }
+  }, []);
+
+  const calendarEvents = useMemo<CalendarEvent[]>(
+    () =>
+      adventures.map((adventure) => ({
+        id: `adventure-${adventure.id}`,
+        title: adventure.title,
+        subtitle: adventure.location || "Adventure",
+        date: adventure.date,
+        startTime: adventure.startTime,
+        endTime: adventure.endTime || undefined,
+        category: adventure.category || "Dates",
+        status: adventure.status,
+        adventureId: adventure.id,
+      })),
     [adventures],
   );
-  const update = (id: string, fn: (a: Adventure) => Adventure) =>
-    setAdventures((p) => p.map((a) => (a.id === id ? fn(a) : a)));
-  const addAdventureStop = (
-    adventureId: string,
-    stop: Omit<AdventureStop, "id" | "sortOrder">,
-  ) => {
-    const created = { ...stop, id: crypto.randomUUID(), sortOrder: 1 };
-    update(adventureId, (adventure) => ({
-      ...adventure,
-      stops: normalizeStops([
-        ...adventure.stops,
-        { ...created, sortOrder: adventure.stops.length + 1 },
-      ]),
-    }));
-    return created;
-  };
-  const updateAdventureStop = (
-    adventureId: string,
-    stopId: string,
-    stop: Omit<AdventureStop, "id" | "sortOrder">,
-  ) =>
-    update(adventureId, (adventure) => ({
-      ...adventure,
-      stops: normalizeStops(
-        adventure.stops.map((current) =>
-          current.id === stopId ? { ...current, ...stop } : current,
-        ),
-      ),
-    }));
-  const deleteAdventureStop = (adventureId: string, stopId: string) =>
-    update(adventureId, (adventure) => ({
-      ...adventure,
-      stops: normalizeStops(
-        adventure.stops.filter((stop) => stop.id !== stopId),
-      ),
-    }));
-  const reorderAdventureStops = (
-    adventureId: string,
-    stopId: string,
-    direction: -1 | 1,
-  ) =>
-    update(adventureId, (adventure) => {
-      const stops = normalizeStops(adventure.stops);
-      const from = stops.findIndex((stop) => stop.id === stopId);
-      const to = from + direction;
-      if (from < 0 || to < 0 || to >= stops.length) return adventure;
-      [stops[from], stops[to]] = [stops[to], stops[from]];
-      return {
-        ...adventure,
-        stops: stops.map((stop, index) => ({ ...stop, sortOrder: index + 1 })),
-      };
-    });
+
+  const value = useMemo<Store>(
+    () => ({
+      adventures,
+      calendarEvents,
+      calendarTargetDate,
+      loading,
+      error,
+      stopsLoading,
+      stopsError,
+      retry: load,
+      createAdventure: async (plan) => {
+        if (!user || !activeSpace)
+          throw new Error("Open your shared space and try again.");
+        if (creatingRef.current)
+          throw new Error("This Adventure is already being created.");
+        creatingRef.current = true;
+        try {
+          const created = await createAdventureRow(
+            activeSpace.id,
+            user.id,
+            plan,
+          );
+          setAdventures((current) => [...current, created]);
+          setCalendarTargetDate(created.date);
+          return created;
+        } finally {
+          creatingRef.current = false;
+        }
+      },
+      promoteIdeaToAdventure: async (ideaId, plan) => {
+        if (!activeSpace)
+          throw new Error("Open your shared space and try again.");
+        if (creatingRef.current)
+          throw new Error("This Adventure is already being created.");
+        creatingRef.current = true;
+        try {
+          const created = await promoteIdeaRow(activeSpace.id, ideaId, plan);
+          setAdventures((current) => [...current, created]);
+          setCalendarTargetDate(created.date);
+          return created;
+        } finally {
+          creatingRef.current = false;
+        }
+      },
+      loadAdventureStops,
+      addAdventureStop: async (adventureId, stop) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const created = await createStop(
+          adventureId,
+          adventure.stops.length + 1,
+          stop,
+        );
+        setAdventures((current) =>
+          current.map((item) =>
+            item.id === adventureId
+              ? { ...item, stops: [...item.stops, created] }
+              : item,
+          ),
+        );
+      },
+      updateAdventureStop: async (adventureId, stopId, stop) => {
+        const saved = await updateStop(adventureId, stopId, stop);
+        setAdventures((current) =>
+          current.map((item) =>
+            item.id === adventureId
+              ? {
+                  ...item,
+                  stops: item.stops.map((currentStop) =>
+                    currentStop.id === stopId ? saved : currentStop,
+                  ),
+                }
+              : item,
+          ),
+        );
+      },
+      deleteAdventureStop: async (adventureId, stopId) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        await deleteStop(adventureId, stopId);
+        const remaining = adventure.stops.filter((stop) => stop.id !== stopId);
+        await reorderStops(
+          adventureId,
+          remaining.map((stop) => stop.id),
+        );
+        setAdventures((current) =>
+          current.map((item) =>
+            item.id === adventureId
+              ? {
+                  ...item,
+                  stops: remaining.map((stop, index) => ({
+                    ...stop,
+                    sortOrder: index + 1,
+                  })),
+                }
+              : item,
+          ),
+        );
+      },
+      reorderAdventureStops: async (adventureId, stopId, direction) => {
+        const adventure = adventures.find((item) => item.id === adventureId);
+        if (!adventure) throw new Error("Adventure not found.");
+        const next: AdventureStop[] = [...adventure.stops].sort(
+          (a, b) => a.sortOrder - b.sortOrder,
+        );
+        const from = next.findIndex((stop) => stop.id === stopId);
+        const to = from + direction;
+        if (from < 0 || to < 0 || to >= next.length) return;
+        [next[from], next[to]] = [next[to], next[from]];
+        await reorderStops(
+          adventureId,
+          next.map((stop) => stop.id),
+        );
+        setAdventures((current) =>
+          current.map((item) =>
+            item.id === adventureId
+              ? {
+                  ...item,
+                  stops: next.map((stop, index) => ({
+                    ...stop,
+                    sortOrder: index + 1,
+                  })),
+                }
+              : item,
+          ),
+        );
+      },
+      toggleFavorite: async (id) => {
+        if (!user || !activeSpace)
+          throw new Error("Open your shared space and try again.");
+        const adventure = adventures.find((item) => item.id === id);
+        if (!adventure) throw new Error("Adventure not found.");
+        replaceAdventure(
+          await updateAdventureFavorite(
+            activeSpace.id,
+            id,
+            user.id,
+            !adventure.favorite,
+          ),
+        );
+      },
+      saveNotes: async (id, notes) => {
+        if (!user || !activeSpace)
+          throw new Error("Open your shared space and try again.");
+        replaceAdventure(
+          await updateAdventureNotes(activeSpace.id, id, user.id, notes),
+        );
+      },
+    }),
+    [
+      activeSpace,
+      adventures,
+      calendarEvents,
+      calendarTargetDate,
+      error,
+      load,
+      loadAdventureStops,
+      loading,
+      replaceAdventure,
+      stopsError,
+      stopsLoading,
+      user,
+    ],
+  );
+
   return (
-    <C.Provider
-      value={{
-        adventures,
-        calendarEvents,
-        calendarTargetDate,
-        addAdventureStop,
-        updateAdventureStop,
-        deleteAdventureStop,
-        reorderAdventureStops,
-        toggleChecklist: (id, itemId) =>
-          update(id, (a) => ({
-            ...a,
-            checklist: a.checklist.map((c) =>
-              c.id === itemId ? { ...c, completed: !c.completed } : c,
-            ),
-          })),
-        addChecklist: (id, label) =>
-          update(id, (a) => ({
-            ...a,
-            checklist: [
-              ...a.checklist,
-              { id: crypto.randomUUID(), label, completed: false },
-            ],
-          })),
-        toggleFavorite: (id) =>
-          update(id, (a) => ({ ...a, favorite: !a.favorite })),
-        completeAdventure: (id) =>
-          update(id, (a) => ({ ...a, completed: true })),
-      }}
-    >
+    <AdventureContext.Provider value={value}>
       {children}
-    </C.Provider>
+    </AdventureContext.Provider>
   );
 }
-export const useAdventureStore = () => {
-  const c = useContext(C);
-  if (!c) throw new Error("Store missing");
-  return c;
-};
+
+export function useAdventureStore() {
+  const context = useContext(AdventureContext);
+  if (!context)
+    throw new Error("useAdventureStore must be used within AdventureProvider");
+  return context;
+}

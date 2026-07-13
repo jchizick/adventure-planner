@@ -1,7 +1,6 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Bell,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -21,12 +20,14 @@ import {
   Palette,
   Home,
   Check,
-  ExternalLink,
   Pencil,
   Trash2,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
-import { ideas as prototypeIdeas } from "./data";
+import {
+  adventures as prototypeAdventures,
+  ideas as prototypeIdeas,
+} from "./data";
 import { useIdeas } from "./ideas";
 import {
   addLocalDays,
@@ -38,7 +39,13 @@ import {
   toLocalDateKey,
 } from "./calendar";
 import { PageHeader, QuickAdd, Sheet, StatusChip } from "./components";
-import type { AdventureStop, Category, Idea, IdeaStatus } from "./types";
+import type {
+  AdventurePlanInput,
+  AdventureStop,
+  Category,
+  Idea,
+  IdeaStatus,
+} from "./types";
 const catIcon: Record<string, typeof Heart> = {
   Dates: Heart,
   Food: Utensils,
@@ -57,26 +64,86 @@ const formatDate = (iso: string) =>
   }).format(new Date(iso + "T12:00:00"));
 export function Today() {
   const nav = useNavigate();
-  const { adventures } = useAdventureStore();
+  const { adventures, loading, error, retry, createAdventure } =
+    useAdventureStore();
+  const [creating, setCreating] = useState(false);
   const upcoming = [...adventures]
     .filter((a) => !a.completed)
     .sort((a, b) => a.date.localeCompare(b.date));
   const next = upcoming[0];
+  const createSheet = creating ? (
+    <AdventureFormSheet
+      title="Plan an Adventure"
+      onClose={() => setCreating(false)}
+      onSubmit={async (plan) => {
+        const created = await createAdventure(plan);
+        setCreating(false);
+        nav(`/adventures/${created.id}`);
+      }}
+    />
+  ) : null;
+  if (loading)
+    return (
+      <div className="page today">
+        <PageHeader eyebrow="Our Adventures 💕" title="Your next adventure" />
+        <div className="ideas-state" role="status">
+          <span className="access-spinner" aria-hidden="true" />
+          <h3>Gathering your Adventures…</h3>
+        </div>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="page today">
+        <PageHeader eyebrow="Our Adventures 💕" title="Your next adventure" />
+        <div className="ideas-state ideas-error" role="alert">
+          <h3>Adventures could not be loaded</h3>
+          <p>{error}</p>
+          <button className="secondary" onClick={() => void retry()}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   if (!next)
     return (
       <div className="page today">
-        <PageHeader eyebrow="Our Adventures 💕" title="Jordan & Liz" />
-        <p>No upcoming adventures yet.</p>
+        <PageHeader
+          eyebrow="Our Adventures 💕"
+          title="Your next adventure"
+          action={
+            <button
+              className="icon-button"
+              onClick={() => setCreating(true)}
+              aria-label="Plan an Adventure"
+            >
+              <Plus />
+            </button>
+          }
+        />
+        <div className="ideas-state">
+          <Sparkles />
+          <h3>No upcoming Adventures yet</h3>
+          <p>Choose a date and start planning something worth remembering.</p>
+          <button className="primary" onClick={() => setCreating(true)}>
+            Plan an Adventure
+          </button>
+        </div>
+        {createSheet}
       </div>
     );
   return (
     <div className="page today">
       <PageHeader
         eyebrow="Our Adventures 💕"
-        title="Jordan & Liz"
+        title="Your next adventure"
         action={
-          <button className="icon-button">
-            <Bell />
+          <button
+            className="icon-button"
+            onClick={() => setCreating(true)}
+            aria-label="Plan an Adventure"
+          >
+            <Plus />
           </button>
         }
       />
@@ -126,7 +193,8 @@ export function Today() {
           </button>
         ))}
       </div>
-      <QuickAdd onClick={() => nav("/ideas?add=1")} />
+      <QuickAdd onClick={() => setCreating(true)} />
+      {createSheet}
     </div>
   );
 }
@@ -151,9 +219,11 @@ const blankIdea: Idea = {
 export function Ideas() {
   const nav = useNavigate();
   const { ideas, loading, error, retry, saveIdea, setIdeaStatus } = useIdeas();
+  const { promoteIdeaToAdventure } = useAdventureStore();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Category | "All">("All");
   const [editing, setEditing] = useState<Idea | null>(null);
+  const [planning, setPlanning] = useState<Idea | null>(null);
   const counts = useMemo(
     () =>
       ideas.reduce<Record<string, number>>(
@@ -302,8 +372,29 @@ export function Ideas() {
         onClose={() => setEditing(null)}
         onSave={saveIdea}
         onStatus={setIdeaStatus}
+        onPlan={(idea) => {
+          setEditing(null);
+          setPlanning(idea);
+        }}
         onView={(id) => nav(`/adventures/${id}`)}
       />
+      {planning && (
+        <AdventureFormSheet
+          title="Turn into an Adventure"
+          idea={planning}
+          onClose={() => setPlanning(null)}
+          onSubmit={async (plan) => {
+            const created = await promoteIdeaToAdventure(planning.id, {
+              ...plan,
+              category: planning.category,
+              coverImage: planning.optionalImage,
+            });
+            await retry();
+            setPlanning(null);
+            nav(`/adventures/${created.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -312,12 +403,14 @@ function IdeaSheet({
   onClose,
   onSave,
   onStatus,
+  onPlan,
   onView,
 }: {
   idea: Idea | null;
   onClose: () => void;
   onSave: (i: Idea) => Promise<void>;
   onStatus: (id: string, s: IdeaStatus) => Promise<void>;
+  onPlan: (idea: Idea) => void;
   onView: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Idea | null>(idea);
@@ -447,16 +540,10 @@ function IdeaSheet({
               <button
                 type="button"
                 className="text-action"
-                disabled
-                title="Adventure persistence is coming next."
+                onClick={() => onPlan(d)}
               >
                 Turn into an adventure <ChevronRight />
               </button>
-            )}
-            {!idea.linkedAdventureId && (
-              <small className="coming-next">
-                Adventure persistence is coming next.
-              </small>
             )}
           </>
         )}
@@ -464,6 +551,175 @@ function IdeaSheet({
     </Sheet>
   );
 }
+type AdventureFormErrors = Partial<
+  Record<"title" | "date" | "startTime" | "endTime" | "form", string>
+>;
+
+function AdventureFormSheet({
+  title,
+  idea,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  idea?: Idea;
+  onClose: () => void;
+  onSubmit: (plan: AdventurePlanInput) => Promise<void>;
+}) {
+  const [plan, setPlan] = useState<AdventurePlanInput>({
+    title: idea?.title || "",
+    description: idea?.description || "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    status: "Tentative",
+    location: idea?.optionalLocation || "",
+    notes: "",
+    category: idea?.category || "Dates",
+    coverImage: idea?.optionalImage,
+  });
+  const [errors, setErrors] = useState<AdventureFormErrors>({});
+  const [saving, setSaving] = useState(false);
+  const update = <K extends keyof AdventurePlanInput>(
+    key: K,
+    value: AdventurePlanInput[K],
+  ) => setPlan((current) => ({ ...current, [key]: value }));
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const nextErrors: AdventureFormErrors = {};
+    if (!plan.title.trim()) nextErrors.title = "Enter a title.";
+    if (!plan.date) nextErrors.date = "Choose a date.";
+    if (!plan.startTime) nextErrors.startTime = "Choose a start time.";
+    if (plan.endTime && plan.endTime < plan.startTime)
+      nextErrors.endTime = "End time must be later than the start time.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(plan);
+    } catch (error) {
+      setErrors({
+        form:
+          error instanceof Error
+            ? error.message
+            : "We could not create this Adventure.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Sheet open title={title} onClose={onClose}>
+      <form className="idea-form planning-form" onSubmit={submit} noValidate>
+        <label>
+          Title
+          <input
+            aria-label="Adventure title"
+            value={plan.title}
+            onChange={(event) => update("title", event.target.value)}
+            aria-invalid={!!errors.title}
+          />
+          {errors.title && <span className="field-error">{errors.title}</span>}
+        </label>
+        <label>
+          Description
+          <textarea
+            aria-label="Adventure description"
+            value={plan.description}
+            onChange={(event) => update("description", event.target.value)}
+          />
+        </label>
+        <div className="form-row">
+          <label>
+            Date
+            <input
+              aria-label="Adventure date"
+              type="date"
+              value={plan.date}
+              onChange={(event) => update("date", event.target.value)}
+              aria-invalid={!!errors.date}
+            />
+            {errors.date && <span className="field-error">{errors.date}</span>}
+          </label>
+          <label>
+            Status
+            <select
+              aria-label="Adventure status"
+              value={plan.status}
+              onChange={(event) =>
+                update(
+                  "status",
+                  event.target.value as AdventurePlanInput["status"],
+                )
+              }
+            >
+              <option>Tentative</option>
+              <option>Confirmed</option>
+            </select>
+          </label>
+        </div>
+        <div className="form-row">
+          <label>
+            Start time
+            <input
+              aria-label="Adventure start time"
+              type="time"
+              value={plan.startTime}
+              onChange={(event) => update("startTime", event.target.value)}
+              aria-invalid={!!errors.startTime}
+            />
+            {errors.startTime && (
+              <span className="field-error">{errors.startTime}</span>
+            )}
+          </label>
+          <label>
+            End time
+            <input
+              aria-label="Adventure end time"
+              type="time"
+              value={plan.endTime}
+              onChange={(event) => update("endTime", event.target.value)}
+              aria-invalid={!!errors.endTime}
+            />
+            {errors.endTime && (
+              <span className="field-error">{errors.endTime}</span>
+            )}
+          </label>
+        </div>
+        <label>
+          Location
+          <input
+            aria-label="Adventure location"
+            value={plan.location}
+            onChange={(event) => update("location", event.target.value)}
+          />
+        </label>
+        <label>
+          Notes
+          <textarea
+            aria-label="Adventure notes"
+            value={plan.notes}
+            onChange={(event) => update("notes", event.target.value)}
+          />
+        </label>
+        {errors.form && (
+          <p className="form-error" role="alert">
+            {errors.form}
+          </p>
+        )}
+        <div className="sheet-actions">
+          <button className="secondary" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary" type="submit" disabled={saving}>
+            {saving ? "Creating…" : "Create Adventure"}
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  );
+}
+
 const monthLabelFormatter = new Intl.DateTimeFormat("en-CA", {
   month: "long",
   year: "numeric",
@@ -478,7 +734,8 @@ const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function Calendar() {
   const nav = useNavigate();
-  const { calendarEvents, calendarTargetDate } = useAdventureStore();
+  const { calendarEvents, calendarTargetDate, loading, error, retry } =
+    useAdventureStore();
   const todayKey = toLocalDateKey(new Date());
   const initialDate = calendarTargetDate || todayKey;
   const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -526,6 +783,17 @@ export function Calendar() {
           </button>
         }
       />
+      {loading && (
+        <p className="inline-state" role="status">
+          Loading Adventures…
+        </p>
+      )}
+      {error && (
+        <div className="ideas-state ideas-error" role="alert">
+          <p>{error}</p>
+          <button onClick={() => void retry()}>Try again</button>
+        </div>
+      )}
       <div className="month-nav">
         <button
           className="month-arrow"
@@ -663,7 +931,7 @@ function StopEditorSheet({
 }: {
   stop?: AdventureStop;
   onClose: () => void;
-  onSave: (stop: Omit<AdventureStop, "id" | "sortOrder">) => void;
+  onSave: (stop: Omit<AdventureStop, "id" | "sortOrder">) => Promise<void>;
 }) {
   const [value, setValue] = useState<StopFormValue>(() => ({
     title: stop?.title || "",
@@ -677,13 +945,15 @@ function StopEditorSheet({
     title?: string;
     endTime?: string;
     travelMinutes?: string;
+    form?: string;
   }>({});
+  const [saving, setSaving] = useState(false);
   const update = (key: keyof StopFormValue, next: string) => {
     setValue((current) => ({ ...current, [key]: next }));
     if (key in errors)
       setErrors((current) => ({ ...current, [key]: undefined }));
   };
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (!value.title.trim()) nextErrors.title = "Enter a stop title.";
@@ -692,17 +962,29 @@ function StopEditorSheet({
     if (value.travelMinutes && Number(value.travelMinutes) < 0)
       nextErrors.travelMinutes = "Travel time cannot be negative.";
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
-    onSave({
-      title: value.title.trim(),
-      location: value.location.trim(),
-      startTime: timeFromInput(value.startTime),
-      endTime: timeFromInput(value.endTime) || undefined,
-      notes: value.notes.trim() || undefined,
-      optionalTravelTime: value.travelMinutes
-        ? `${Number(value.travelMinutes)} min`
-        : undefined,
-    });
+    if (Object.keys(nextErrors).length || saving) return;
+    setSaving(true);
+    try {
+      await onSave({
+        title: value.title.trim(),
+        location: value.location.trim(),
+        startTime: timeFromInput(value.startTime),
+        endTime: timeFromInput(value.endTime) || undefined,
+        notes: value.notes.trim() || undefined,
+        optionalTravelTime: value.travelMinutes
+          ? `${Number(value.travelMinutes)} min`
+          : undefined,
+      });
+    } catch (error) {
+      setErrors({
+        form:
+          error instanceof Error
+            ? error.message
+            : "We could not save this stop.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Sheet
@@ -793,10 +1075,15 @@ function StopEditorSheet({
           <button className="secondary" type="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary" type="submit">
-            {stop ? "Save changes" : "Add stop"}
+          <button className="primary" type="submit" disabled={saving}>
+            {saving ? "Saving…" : stop ? "Save changes" : "Add stop"}
           </button>
         </div>
+        {errors.form && (
+          <p className="form-error" role="alert">
+            {errors.form}
+          </p>
+        )}
       </form>
     </Sheet>
   );
@@ -807,18 +1094,25 @@ export function AdventureDetail() {
   const nav = useNavigate();
   const {
     adventures,
-    toggleChecklist,
-    addChecklist,
+    loading,
+    error,
+    retry,
+    stopsLoading,
+    stopsError,
+    loadAdventureStops,
     toggleFavorite,
-    completeAdventure,
+    saveNotes,
     addAdventureStop,
     updateAdventureStop,
     deleteAdventureStop,
     reorderAdventureStops,
   } = useAdventureStore();
   const a = adventures.find((x) => x.id === id);
+  const adventureId = a?.id;
   const [tab, setTab] = useState("Itinerary");
-  const [item, setItem] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
   const [stopEditor, setStopEditor] = useState<{
     mode: "add" | "edit";
     stop?: AdventureStop;
@@ -826,6 +1120,29 @@ export function AdventureDetail() {
   const [deleteCandidate, setDeleteCandidate] = useState<AdventureStop | null>(
     null,
   );
+  useEffect(() => {
+    if (!adventureId) return;
+    void loadAdventureStops(adventureId);
+  }, [adventureId, loadAdventureStops]);
+  if (loading)
+    return (
+      <div className="page">
+        <div className="ideas-state" role="status">
+          <span className="access-spinner" aria-hidden="true" />
+          <h3>Opening this Adventure…</h3>
+        </div>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="page">
+        <div className="ideas-state ideas-error" role="alert">
+          <h3>Adventure could not be loaded</h3>
+          <p>{error}</p>
+          <button onClick={() => void retry()}>Try again</button>
+        </div>
+      </div>
+    );
   if (!a)
     return (
       <div className="page">
@@ -849,7 +1166,7 @@ export function AdventureDetail() {
       <section className="detail-sheet">
         <button
           className={`favorite ${a.favorite ? "on" : ""}`}
-          onClick={() => toggleFavorite(a.id)}
+          onClick={() => void toggleFavorite(a.id)}
           aria-label="Toggle favorite"
         >
           <Heart fill={a.favorite ? "currentColor" : "none"} />
@@ -870,7 +1187,10 @@ export function AdventureDetail() {
           {["Itinerary", "Notes", "Links", "Checklist"].map((t) => (
             <button
               className={tab === t ? "active" : ""}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                if (t === "Notes") setNotesDraft(a.notes);
+                setTab(t);
+              }}
               key={t}
             >
               {t}
@@ -891,6 +1211,16 @@ export function AdventureDetail() {
                 <Plus /> Add stop
               </button>
             </div>
+            {stopsLoading && (
+              <p className="inline-state" role="status">
+                Loading itinerary…
+              </p>
+            )}
+            {stopsError && (
+              <p className="form-error" role="alert">
+                {stopsError}
+              </p>
+            )}
             <div
               className={`map-card ${orderedStops.length ? "" : "empty-route"}`}
             >
@@ -989,53 +1319,49 @@ export function AdventureDetail() {
         {tab === "Notes" && (
           <div className="tab-panel">
             <h2>Notes for the day</h2>
-            <p>{a.notes || "No notes yet."}</p>
-            <textarea aria-label="Adventure notes" defaultValue={a.notes} />
-            <button className="primary">Save notes</button>
+            <textarea
+              aria-label="Adventure notes"
+              value={notesDraft}
+              onChange={(event) => setNotesDraft(event.target.value)}
+            />
+            {notesError && (
+              <p className="form-error" role="alert">
+                {notesError}
+              </p>
+            )}
+            <button
+              className="primary"
+              disabled={notesSaving}
+              onClick={async () => {
+                setNotesSaving(true);
+                setNotesError(null);
+                try {
+                  await saveNotes(a.id, notesDraft);
+                } catch (error) {
+                  setNotesError(
+                    error instanceof Error
+                      ? error.message
+                      : "We could not save these notes.",
+                  );
+                } finally {
+                  setNotesSaving(false);
+                }
+              }}
+            >
+              {notesSaving ? "Saving…" : "Save notes"}
+            </button>
           </div>
         )}
         {tab === "Links" && (
           <div className="tab-panel">
             <h2>Useful links</h2>
-            {a.links.map((l) => (
-              <a className="link-row" href={l.url} target="_blank" key={l.id}>
-                {l.label}
-                <ExternalLink />
-              </a>
-            ))}
+            <p>Persistent shared links are coming next.</p>
           </div>
         )}
         {tab === "Checklist" && (
           <div className="tab-panel checklist">
             <h2>Shared checklist</h2>
-            {a.checklist.map((c) => (
-              <label key={c.id}>
-                <input
-                  type="checkbox"
-                  checked={c.completed}
-                  onChange={() => toggleChecklist(a.id, c.id)}
-                />
-                <span>{c.label}</span>
-              </label>
-            ))}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (item.trim()) {
-                  addChecklist(a.id, item.trim());
-                  setItem("");
-                }
-              }}
-            >
-              <input
-                value={item}
-                onChange={(e) => setItem(e.target.value)}
-                placeholder="Add an item"
-              />
-              <button>
-                <Plus />
-              </button>
-            </form>
+            <p>Persistent checklist items are coming next.</p>
           </div>
         )}
         {stopEditor && (
@@ -1043,10 +1369,10 @@ export function AdventureDetail() {
             key={stopEditor.stop?.id || "new-stop"}
             stop={stopEditor.stop}
             onClose={() => setStopEditor(null)}
-            onSave={(stop) => {
+            onSave={async (stop) => {
               if (stopEditor.mode === "edit" && stopEditor.stop)
-                updateAdventureStop(a.id, stopEditor.stop.id, stop);
-              else addAdventureStop(a.id, stop);
+                await updateAdventureStop(a.id, stopEditor.stop.id, stop);
+              else await addAdventureStop(a.id, stop);
               setStopEditor(null);
             }}
           />
@@ -1070,8 +1396,8 @@ export function AdventureDetail() {
                 </button>
                 <button
                   className="danger-button"
-                  onClick={() => {
-                    deleteAdventureStop(a.id, deleteCandidate.id);
+                  onClick={async () => {
+                    await deleteAdventureStop(a.id, deleteCandidate.id);
                     setDeleteCandidate(null);
                   }}
                 >
@@ -1083,7 +1409,8 @@ export function AdventureDetail() {
         )}
         <button
           className={`complete-button ${a.completed ? "done" : ""}`}
-          onClick={() => completeAdventure(a.id)}
+          disabled
+          title="Completion persistence is coming next."
         >
           {a.completed ? (
             <>
@@ -1091,7 +1418,7 @@ export function AdventureDetail() {
             </>
           ) : (
             <>
-              Mark as completed <Sparkles />
+              Completion persistence is coming next <Sparkles />
             </>
           )}
         </button>
@@ -1100,8 +1427,7 @@ export function AdventureDetail() {
   );
 }
 export function Memories() {
-  const { adventures } = useAdventureStore();
-  const done = adventures.filter((a) => a.completed);
+  const done = prototypeAdventures.filter((a) => a.completed);
   return (
     <div className="page memories">
       <PageHeader eyebrow="The days worth keeping" title="Memories" />

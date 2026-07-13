@@ -1,4 +1,5 @@
 export type IdeaStatus = "Idea" | "Tentative" | "Confirmed";
+export type AdventureStatus = "Tentative" | "Confirmed" | "Completed";
 export type Category =
   | "Dates"
   | "Food"
@@ -52,7 +53,7 @@ export interface Adventure {
   date: string;
   startTime: string;
   endTime: string;
-  status: IdeaStatus;
+  status: AdventureStatus;
   coverImage?: string;
   location: string;
   category?: Category;
@@ -74,7 +75,7 @@ export interface CalendarEvent {
   startTime?: string;
   endTime?: string;
   category: Category;
-  status: IdeaStatus;
+  status: AdventureStatus;
   adventureId?: string;
   allDay?: boolean;
 }
@@ -87,4 +88,6 @@ export interface AdventurePlanInput {
   status: Extract<IdeaStatus, "Tentative" | "Confirmed">;
   location: string;
   notes: string;
+  category?: Category;
+  coverImage?: string;
 }
