@@ -6,6 +6,12 @@ Implement explicit location selection for Adventures and itinerary stops using G
 
 Raw text remains valid, but only a user-selected candidate becomes confirmed and mappable. The map renders confirmed stops in itinerary order, fits all markers, and never infers routes or locations.
 
+Implementation status: Phases 1–5 are committed separately. The "Current data
+flow" section below records the pre-implementation baseline; the current forms
+use explicit `LocationDraft` intent, save-time geocoding is absent outside the
+explicit weather-enablement action, and the itinerary uses the lazy MapLibre
+map described later in this document.
+
 Key approved decisions:
 
 - The purple map flag belongs only to the actual final itinerary stop.
@@ -319,12 +325,35 @@ Add `AdventureStopsMap` in a dedicated module with no static imports from the in
 
 Deployment order:
 
-1. Apply the reviewed additive migration.
-2. Configure Geoapify secrets and deploy `search-locations`.
-3. Deploy the new frontend with explicit-selection behavior.
-4. Verify Adventure/stop saving, weather compatibility, and the lazy map.
-5. Only after verification, deprecate `geocode-adventure-location`.
-6. If stale clients must be blocked, return a non-2xx explicit `deprecated_client` error rather than a silent null/no-match response.
+1. Reconfirm the provider account, quotas, pricing/terms, persistence terms, and Geoapify/OpenMapTiles/OpenStreetMap attribution requirements.
+2. Configure `GEOAPIFY_GEOCODING_KEY` as a Supabase Edge Function secret; never expose it through Vite.
+3. Configure the separate public `VITE_GEOAPIFY_MAP_KEY` in the frontend deployment environment.
+4. Restrict the public map key to the exact known production and preview origins, then verify the restrictions with the `osm-bright-grey` style URL.
+5. Re-run `npx supabase migration list --linked` and `npx supabase db push --linked --dry-run`, then apply only the two reviewed location migrations with `npx supabase db push --linked`.
+6. Deploy the authenticated function with `npx supabase functions deploy search-locations`.
+7. Deploy the frontend containing explicit selection and the lazy map.
+8. In an approved workspace, verify authenticated Adventure/stop create and edit transitions, Idea promotion, duplication, weather compatibility, authorization boundaries, search, and map behavior.
+9. Monitor safe Edge Function stage/status logs, provider quota, map/search failures, and frontend errors.
+10. Only after verified production use, plan `geocode-adventure-location` retirement as a later isolated change.
+
+### Rollback behavior
+
+- The nullable additive columns remain compatible with an older frontend and must not be destructively removed after confirmed metadata may have been stored.
+- The original `promote_idea_to_adventure` function remains available. The replacement `duplicate_adventure(uuid)` keeps its signature, so RPC callers remain compatible.
+- `search-locations` can remain deployed during a frontend rollback because it is authenticated, RLS-scoped, read-only, and does not auto-select or persist candidates.
+- A missing map key produces the existing non-blocking configuration fallback. Geoapify search or tile failure leaves text editing and the itinerary list usable.
+- To pause new explicit selection, deploy the last verified pre-autocomplete frontend or a focused frontend change that hides candidate search. Do not clear normalized columns or rewrite existing confirmed rows.
+- Do not roll back the migrations by dropping columns or functions. Correct a migration defect with a new forward migration after impact review.
+
+### Phase 6 verification status
+
+- Linked migration history and a dry-run must show only `20260714155345_add_confirmed_locations.sql` followed by `20260714193619_add_location_persistence_rpcs.sql` before approval to push.
+- The server search secret and public map key must be configured and tested manually; neither key is available in the repository.
+- Without a committed local Supabase configuration, do not improvise a destructive local reset. SQL compilation and constraint/RPC behavior remain an isolated-environment or post-migration verification step.
+- Authenticated mutation and owner/member/non-member checks require an approved isolated workspace or test accounts. Production-like records must not be created merely for rollout preparation. In that environment, verify Adventure create with text-only and confirmed locations; edit preserve, text-only, and clear transitions; the same stop transitions; text-only and confirmed Idea promotion; duplication of every location state; legacy/confirmed/text-only weather behavior; member writes; owner/member reads; non-member and unauthenticated denial; and search authorization without existence disclosure.
+- In the approved authenticated browser session, verify zero, one, partial, and final-unresolved stop maps; marker/list selection; and marker refresh after reorder and location replacement at desktop and narrow mobile widths.
+- A live provider check must use a non-sensitive query and verify `bias=countrycode:none`, `bias=proximity:longitude,latitude|countrycode:none`, provider `datasource` attribution, multiple-candidate behavior, and no persistence.
+- The legacy geocoder remains unchanged until the replacement frontend is deployed and verified. Future retirement must identify and monitor remaining callers, assess stale clients, return an explicit non-2xx `deprecated_client` error if blocking is necessary, and remove the function only in a later approved change.
 
 Do not disable or remove the legacy function before the replacement frontend is deployed and verified.
 

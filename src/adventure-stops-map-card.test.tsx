@@ -157,6 +157,8 @@ describe("AdventureStopsMapCard", () => {
     expect(cardSource).toContain('import("./adventure-stops-map-lazy")');
     expect(lazyMapSource).toContain('from "maplibre-gl"');
     expect(lazyMapSource).toContain('maplibre-gl/dist/maplibre-gl.css');
+    expect(lazyMapSource).toContain("https://openmaptiles.org/");
+    expect(lazyMapSource).toContain("© OpenStreetMap contributors");
     expect(cardSource).not.toContain('from "maplibre-gl"');
     expect(pagesSource).not.toContain('from "maplibre-gl"');
     expect(pagesSource).not.toContain("route-line");

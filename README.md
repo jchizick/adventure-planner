@@ -126,7 +126,7 @@ origin that should load tiles, including the chosen local origin and each
 production or preview origin. Review the Geoapify project quota and billing
 limits, configure usage alerts where available, and verify the
 `osm-bright-grey` MapLibre style manually after changing restrictions. The map
-keeps Geoapify and OpenStreetMap attribution visible. See the
+keeps Geoapify, OpenMapTiles, and OpenStreetMap attribution visible. See the
 [Geoapify map-tile documentation](https://apidocs.geoapify.com/docs/maps/) for
 provider setup and current style URLs.
 
