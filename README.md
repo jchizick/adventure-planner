@@ -101,7 +101,12 @@ raw token.
 ## Verification
 
 ```bash
+npm test
 npm run lint
 npm run typecheck
 npm run build
 ```
+
+`npm test` runs the committed Vitest suite. The initial coverage targets pure
+location normalization and persistence-payload behavior; browser/E2E tooling
+is still not configured in this repository.

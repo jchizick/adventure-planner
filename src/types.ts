@@ -7,6 +7,57 @@ export type AdventureCoverSelection = {
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
 };
+export type NormalizedAddress = {
+  name?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  county?: string;
+  region?: string;
+  regionCode?: string;
+  postcode?: string;
+  country?: string;
+  countryCode?: string;
+};
+export type LocationSource = {
+  name: string;
+  attribution: string;
+  license?: string;
+  url?: string;
+};
+export type LocationCandidate = {
+  provider: string;
+  providerPlaceId: string;
+  label: string;
+  formattedAddress: string;
+  address: NormalizedAddress;
+  source: LocationSource;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+};
+export type SavedLocation =
+  | { kind: "none"; label: "" }
+  | { kind: "text"; label: string }
+  | {
+      kind: "legacy";
+      label: string;
+      latitude: number;
+      longitude: number;
+      timezone?: string;
+      formattedAddress?: string;
+    }
+  | {
+      kind: "confirmed";
+      label: string;
+      candidate: LocationCandidate;
+      confirmedAt: string;
+    };
+export type LocationDraft = {
+  label: string;
+  intent: "preserve" | "selected" | "text-only" | "clear";
+  candidate?: LocationCandidate;
+};
 export type { Category } from "./idea-model";
 export interface Idea {
   id: string;
