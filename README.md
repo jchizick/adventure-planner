@@ -113,6 +113,19 @@ npx supabase secrets set GEOAPIFY_GEOCODING_KEY=YOUR_SERVER_SIDE_KEY
 separate manual step after its secret is configured; Phase 2 does not require a
 browser map key.
 
+### Location persistence rollout compatibility
+
+Adventure and stop repositories accept the explicit `LocationDraft` contract,
+but the current pre-autocomplete forms still submit plain text. During this
+intermediate rollout, edits compare the trimmed submitted label with the
+previously loaded `SavedLocation` label: an unchanged final label preserves all
+legacy or confirmed metadata, changed text becomes text-only and clears stale
+geographic metadata, and an empty value clears the location. Creation and Idea
+promotion have no previous saved location, so their plain text is always stored
+as text-only and is never automatically geocoded. If a user edits a label and
+then restores it exactly before submitting, the adapter safely treats the final
+unchanged value as preserve. Phase 4 forms will send explicit intent instead.
+
 ## Verification
 
 ```bash

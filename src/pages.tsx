@@ -1262,7 +1262,9 @@ function StopEditorSheet({
 }: {
   stop?: AdventureStop;
   onClose: () => void;
-  onSave: (stop: Omit<AdventureStop, "id" | "sortOrder">) => Promise<void>;
+  onSave: (
+    stop: Omit<AdventureStop, "id" | "sortOrder" | "savedLocation">,
+  ) => Promise<void>;
 }) {
   const [value, setValue] = useState<StopFormValue>(() => ({
     title: stop?.title || "",

@@ -82,6 +82,7 @@ export interface AdventureStop {
   id: string;
   title: string;
   location: string;
+  savedLocation: SavedLocation;
   startTime: string;
   endTime?: string;
   notes?: string;
@@ -112,6 +113,7 @@ export interface Adventure {
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
   location: string;
+  savedLocation: SavedLocation;
   latitude?: number;
   longitude?: number;
   timezone?: string;
@@ -178,6 +180,7 @@ export interface AdventurePlanInput {
   endTime: string;
   status: Extract<IdeaStatus, "Tentative" | "Confirmed">;
   location: string;
+  locationDraft?: LocationDraft;
   notes: string;
   category?: Category;
   coverImage?: string;

@@ -210,3 +210,27 @@ export function buildLocationWritePayload(
     location_confirmed_at: confirmedAt,
   };
 }
+
+/**
+ * Bridges the current text-only forms to the explicit Phase 4 contract.
+ * Existing records preserve geographic metadata when the final submitted label
+ * is unchanged. A changed non-empty label becomes text-only, and an empty label
+ * clears every location field. New records never interpret raw text as a
+ * confirmed location. Once a form supplies an explicit draft, that intent wins.
+ */
+export function locationDraftForPersistence(
+  label: string,
+  explicitDraft?: LocationDraft,
+  previous?: SavedLocation,
+): LocationDraft {
+  if (explicitDraft && (explicitDraft.intent !== "preserve" || previous))
+    return explicitDraft;
+
+  const nextLabel = label.trim();
+  if (previous && nextLabel === previous.label.trim()) {
+    return { label: nextLabel, intent: "preserve" };
+  }
+  return nextLabel
+    ? { label: nextLabel, intent: "text-only" }
+    : { label: "", intent: "clear" };
+}

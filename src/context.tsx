@@ -348,7 +348,12 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
         if (!adventure) throw new Error("Adventure not found.");
         const existingStop = adventure.stops.find((item) => item.id === stopId);
         if (!existingStop) throw new Error("Stop not found.");
-        const saved = await updateStop(adventureId, stopId, stop);
+        const saved = await updateStop(
+          adventureId,
+          stopId,
+          stop,
+          existingStop,
+        );
         const startTimeChanged =
           timeToMinutes(existingStop.startTime) !== timeToMinutes(saved.startTime);
         const next = startTimeChanged

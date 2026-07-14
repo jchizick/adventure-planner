@@ -1,11 +1,30 @@
 import { supabase } from "../lib/supabase";
-import type { AdventureStop } from "../types";
+import {
+  buildLocationWritePayload,
+  locationDraftForPersistence,
+  mapSavedLocation,
+  type LocationWritePayload,
+} from "../location";
+import type {
+  AdventureStop,
+  LocationDraft,
+  SavedLocation,
+} from "../types";
 
-type StopRow = {
+export type StopRow = {
   id: string;
   adventure_id: string;
   title: string;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+  geocoded_location: string | null;
+  location_provider: string | null;
+  location_provider_id: string | null;
+  location_address: unknown;
+  location_source: unknown;
+  location_confirmed_at: string | null;
   start_time: string | null;
   end_time: string | null;
   notes: string | null;
@@ -13,9 +32,12 @@ type StopRow = {
   travel_time_minutes: number | null;
 };
 
-export type StopDraft = Omit<AdventureStop, "id" | "sortOrder">;
-const columns =
-  "id, adventure_id, title, location, start_time, end_time, notes, sort_order, travel_time_minutes";
+export type StopDraft = Omit<
+  AdventureStop,
+  "id" | "sortOrder" | "savedLocation"
+> & { locationDraft?: LocationDraft };
+export const stopColumns =
+  "id, adventure_id, title, location, latitude, longitude, timezone, geocoded_location, location_provider, location_provider_id, location_address, location_source, location_confirmed_at, start_time, end_time, notes, sort_order, travel_time_minutes";
 
 function displayTime(value: string | null) {
   if (!value) return "";
@@ -39,11 +61,12 @@ function travelMinutes(value?: string) {
   return Number.isFinite(minutes) ? minutes : null;
 }
 
-function mapStop(row: StopRow): AdventureStop {
+export function mapStop(row: StopRow): AdventureStop {
   return {
     id: row.id,
     title: row.title,
     location: row.location ?? "",
+    savedLocation: mapSavedLocation(row),
     startTime: displayTime(row.start_time),
     endTime: displayTime(row.end_time) || undefined,
     notes: row.notes ?? undefined,
@@ -55,10 +78,21 @@ function mapStop(row: StopRow): AdventureStop {
   };
 }
 
-function writable(draft: StopDraft) {
+export function stopLocationPayload(
+  draft: Pick<StopDraft, "location" | "locationDraft">,
+  previous?: SavedLocation,
+  confirmedAt = new Date().toISOString(),
+): LocationWritePayload {
+  return buildLocationWritePayload(
+    locationDraftForPersistence(draft.location, draft.locationDraft, previous),
+    { confirmedAt },
+  );
+}
+
+function writable(draft: StopDraft, previous?: SavedLocation) {
   return {
     title: draft.title.trim(),
-    location: draft.location.trim() || null,
+    ...stopLocationPayload(draft, previous),
     start_time: inputTime(draft.startTime),
     end_time: inputTime(draft.endTime ?? ""),
     notes: draft.notes?.trim() || null,
@@ -75,7 +109,7 @@ function repositoryError(action: string, error: { message: string }) {
 export async function loadStops(adventureId: string): Promise<AdventureStop[]> {
   const { data, error } = await supabase
     .from("adventure_stops")
-    .select(columns)
+    .select(stopColumns)
     .eq("adventure_id", adventureId)
     .order("sort_order", { ascending: true });
   if (error) throw repositoryError("load", error);
@@ -94,7 +128,7 @@ export async function createStop(
       sort_order: sortOrder,
       ...writable(draft),
     })
-    .select(columns)
+    .select(stopColumns)
     .single();
   if (error) throw repositoryError("create", error);
   return mapStop(data as StopRow);
@@ -104,13 +138,14 @@ export async function updateStop(
   adventureId: string,
   stopId: string,
   draft: StopDraft,
+  previous: AdventureStop,
 ) {
   const { data, error } = await supabase
     .from("adventure_stops")
-    .update(writable(draft))
+    .update(writable(draft, previous.savedLocation))
     .eq("adventure_id", adventureId)
     .eq("id", stopId)
-    .select(columns)
+    .select(stopColumns)
     .single();
   if (error) throw repositoryError("update", error);
   return mapStop(data as StopRow);

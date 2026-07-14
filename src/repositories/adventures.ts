@@ -2,6 +2,12 @@ import { supabase } from "../lib/supabase";
 import { normalizeCategoryOrNull } from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
 import {
+  buildLocationWritePayload,
+  locationDraftForPersistence,
+  mapSavedLocation,
+  type LocationWritePayload,
+} from "../location";
+import {
   geocodeAdventureLocation,
   type AdventureCoordinates,
 } from "./geocoding";
@@ -11,13 +17,14 @@ import type {
   AdventureCoverVariant,
   AdventurePlanInput,
   AdventureStatus,
+  SavedLocation,
 } from "../types";
 
 type DatabaseAdventureStatus = "tentative" | "confirmed" | "completed";
 type ProfileJoin =
   { display_name: string | null } | { display_name: string | null }[] | null;
 
-type AdventureRow = {
+export type AdventureRow = {
   id: string;
   space_id: string;
   source_idea_id: string | null;
@@ -33,6 +40,11 @@ type AdventureRow = {
   longitude: number | null;
   timezone: string | null;
   geocoded_location: string | null;
+  location_provider: string | null;
+  location_provider_id: string | null;
+  location_address: unknown;
+  location_source: unknown;
+  location_confirmed_at: string | null;
   notes: string | null;
   cover_image_url: string | null;
   cover_variant: number | null;
@@ -46,10 +58,12 @@ type AdventureRow = {
   updater_profile?: ProfileJoin;
 };
 
-const adventureColumns = `
+export const adventureColumns = `
   id, space_id, source_idea_id, title, description, category, status,
   event_date, start_time, end_time, location, latitude, longitude, timezone,
-  geocoded_location, notes, cover_image_url, cover_variant,
+  geocoded_location, location_provider, location_provider_id,
+  location_address, location_source, location_confirmed_at,
+  notes, cover_image_url, cover_variant,
   is_favorite, completed_at, created_by, updated_by, created_at, updated_at,
   creator_profile:profiles!adventures_created_by_fkey(display_name),
   updater_profile:profiles!adventures_updated_by_fkey(display_name)
@@ -79,6 +93,7 @@ function displayTime(value: string | null) {
 }
 
 export function mapAdventure(row: AdventureRow): Adventure {
+  const savedLocation = mapSavedLocation(row);
   return {
     id: row.id,
     title: row.title,
@@ -90,6 +105,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     coverImage: row.cover_image_url ?? undefined,
     coverVariant: normalizeCoverVariant(row.cover_variant),
     location: row.location ?? "Location to be decided",
+    savedLocation,
     latitude: row.latitude ?? undefined,
     longitude: row.longitude ?? undefined,
     timezone: row.timezone ?? undefined,
@@ -120,9 +136,6 @@ function repositoryError(action: string, error: { message: string }) {
   return new Error(`We could not ${action} this adventure. Please try again.`);
 }
 
-const locationWarning =
-  "Location saved, but weather could not be enabled for this address.";
-
 function coordinatePayload(coordinates: AdventureCoordinates | null) {
   return {
     latitude: coordinates?.latitude ?? null,
@@ -132,13 +145,34 @@ function coordinatePayload(coordinates: AdventureCoordinates | null) {
   };
 }
 
-function withLocationWarning(
-  adventure: Adventure,
-  shouldWarn: boolean,
-): Adventure {
-  return shouldWarn
-    ? { ...adventure, locationWeatherWarning: locationWarning }
-    : adventure;
+export function adventureLocationPayload(
+  plan: Pick<AdventurePlanInput, "location" | "locationDraft">,
+  previous?: SavedLocation,
+  confirmedAt = new Date().toISOString(),
+): LocationWritePayload {
+  return buildLocationWritePayload(
+    locationDraftForPersistence(plan.location, plan.locationDraft, previous),
+    { confirmedAt },
+  );
+}
+
+export function promotionLocationRpcPayload(
+  plan: Pick<AdventurePlanInput, "location" | "locationDraft">,
+  confirmedAt = new Date().toISOString(),
+) {
+  const payload = adventureLocationPayload(plan, undefined, confirmedAt);
+  return {
+    p_location: payload.location ?? null,
+    p_latitude: payload.latitude ?? null,
+    p_longitude: payload.longitude ?? null,
+    p_timezone: payload.timezone ?? null,
+    p_geocoded_location: payload.geocoded_location ?? null,
+    p_location_provider: payload.location_provider ?? null,
+    p_location_provider_id: payload.location_provider_id ?? null,
+    p_location_address: payload.location_address ?? null,
+    p_location_source: payload.location_source ?? null,
+    p_location_confirmed_at: payload.location_confirmed_at ?? null,
+  };
 }
 
 export async function loadAdventures(spaceId: string): Promise<Adventure[]> {
@@ -171,10 +205,7 @@ export async function createAdventure(
   userId: string,
   plan: AdventurePlanInput,
 ): Promise<Adventure> {
-  const location = plan.location.trim();
-  const coordinates = location
-    ? await geocodeAdventureLocation(spaceId, location)
-    : null;
+  const locationPayload = adventureLocationPayload(plan);
   const { data, error } = await supabase
     .from("adventures")
     .insert({
@@ -186,8 +217,7 @@ export async function createAdventure(
       event_date: plan.date,
       start_time: plan.startTime,
       end_time: plan.endTime || null,
-      location: location || null,
-      ...coordinatePayload(coordinates),
+      ...locationPayload,
       notes: plan.notes.trim() || null,
       cover_image_url: plan.coverImage?.trim() || null,
       cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
@@ -197,10 +227,7 @@ export async function createAdventure(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("create", error);
-  return withLocationWarning(
-    mapAdventure(data as unknown as AdventureRow),
-    Boolean(location && !coordinates),
-  );
+  return mapAdventure(data as unknown as AdventureRow);
 }
 
 export async function updateAdventure(
@@ -211,28 +238,6 @@ export async function updateAdventure(
   preserveCompletion: boolean,
   previous: Adventure,
 ): Promise<Adventure> {
-  const location = plan.location.trim();
-  const previousLocation = previous.location === "Location to be decided"
-    ? ""
-    : previous.location.trim();
-  const needsGeocoding = Boolean(
-    location &&
-      (location !== previousLocation ||
-        previous.latitude === undefined ||
-        previous.longitude === undefined ||
-        !previous.timezone),
-  );
-  const coordinates = needsGeocoding
-    ? await geocodeAdventureLocation(spaceId, location)
-    : location && previous.latitude !== undefined &&
-        previous.longitude !== undefined && previous.timezone
-    ? {
-        latitude: previous.latitude,
-        longitude: previous.longitude,
-        timezone: previous.timezone,
-        geocodedLocation: previous.geocodedLocation ?? location,
-      }
-    : null;
   const payload: Record<string, unknown> = {
     title: plan.title.trim(),
     description: plan.description.trim() || null,
@@ -240,8 +245,7 @@ export async function updateAdventure(
     event_date: plan.date,
     start_time: plan.startTime,
     end_time: plan.endTime || null,
-    location: location || null,
-    ...coordinatePayload(coordinates),
+    ...adventureLocationPayload(plan, previous.savedLocation),
     notes: plan.notes.trim() || null,
     cover_image_url: plan.coverImage?.trim() || null,
     cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
@@ -257,10 +261,7 @@ export async function updateAdventure(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("update", error);
-  return withLocationWarning(
-    mapAdventure(data as unknown as AdventureRow),
-    Boolean(needsGeocoding && !coordinates),
-  );
+  return mapAdventure(data as unknown as AdventureRow);
 }
 
 export async function updateAdventureCover(
@@ -343,11 +344,8 @@ export async function promoteIdea(
   ideaId: string,
   plan: AdventurePlanInput,
 ): Promise<Adventure> {
-  const location = plan.location.trim();
-  const coordinates = location
-    ? await geocodeAdventureLocation(spaceId, location)
-    : null;
-  const { data, error } = await supabase.rpc("promote_idea_to_adventure", {
+  const locationPayload = promotionLocationRpcPayload(plan);
+  const { data, error } = await supabase.rpc("promote_idea_to_adventure_v2", {
     p_idea_id: ideaId,
     p_title: plan.title.trim(),
     p_description: plan.description.trim(),
@@ -355,30 +353,17 @@ export async function promoteIdea(
     p_start_time: plan.startTime,
     p_end_time: plan.endTime || null,
     p_status: uiToDatabaseStatus[plan.status],
-    p_location: location || null,
+    ...locationPayload,
     p_notes: plan.notes.trim() || null,
     p_category: plan.category ?? null,
     p_cover_image_url: plan.coverImage?.trim() || null,
   });
   if (error) throw repositoryError("promote", error);
-  const row = data as unknown as AdventureRow;
-  let loaded = await loadAdventure(spaceId, row.id);
+  const row = data as unknown as { id: string };
+  const loaded = await loadAdventure(spaceId, row.id);
   if (!loaded)
     throw new Error("The Adventure was created but could not be opened.");
-  if (coordinates) {
-    const { data: updated, error: coordinateError } = await supabase
-      .from("adventures")
-      .update(coordinatePayload(coordinates))
-      .eq("space_id", spaceId)
-      .eq("id", loaded.id)
-      .select(adventureColumns)
-      .single();
-    if (!coordinateError && updated)
-      loaded = mapAdventure(updated as unknown as AdventureRow);
-    else
-      return withLocationWarning(loaded, true);
-  }
-  return withLocationWarning(loaded, Boolean(location && !coordinates));
+  return loaded;
 }
 
 export async function updateAdventureNotes(
