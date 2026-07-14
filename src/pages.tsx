@@ -73,6 +73,9 @@ import {
 } from "./calendar";
 import { PageHeader, QuickAdd, SafeImage, Sheet, StatusChip } from "./components";
 import { WeatherIndicator } from "./weather";
+import { LocationSearchField } from "./location-search-field";
+import { initialLocationDraft } from "./location-field-state";
+import type { StopDraft } from "./repositories/adventure-stops";
 import type {
   Adventure,
   AdventureCoverSelection,
@@ -85,6 +88,8 @@ import type {
   Idea,
   IdeaStatus,
   MemorySummary,
+  SavedLocation,
+  LocationDraft,
 } from "./types";
 const catIcon: Record<string, typeof Heart> = {
   "date-night": Heart,
@@ -858,6 +863,8 @@ function AdventureFormSheet({
   title,
   idea,
   initialPlan,
+  savedLocation = { kind: "none", label: "" },
+  adventureId,
   submitLabel = "Create Adventure",
   savingLabel = "Creating…",
   onClose,
@@ -866,13 +873,16 @@ function AdventureFormSheet({
   title: string;
   idea?: Idea;
   initialPlan?: AdventurePlanInput;
+  savedLocation?: SavedLocation;
+  adventureId?: string;
   submitLabel?: string;
   savingLabel?: string;
   onClose: () => void;
   onSubmit: (plan: AdventurePlanInput) => Promise<void>;
 }) {
-  const [plan, setPlan] = useState<AdventurePlanInput>(() =>
-    initialPlan ?? {
+  const { activeSpace } = useWorkspace();
+  const [plan, setPlan] = useState<AdventurePlanInput>(() => {
+    const base = initialPlan ?? {
       title: idea?.title || "",
       description: idea?.description || "",
       date: "",
@@ -883,8 +893,14 @@ function AdventureFormSheet({
       notes: "",
       category: idea?.category || "culture",
       coverImage: idea?.optionalImage,
-    },
-  );
+    };
+    return {
+      ...base,
+      locationDraft:
+        base.locationDraft ??
+        initialLocationDraft(savedLocation, base.location),
+    };
+  });
   const [errors, setErrors] = useState<AdventureFormErrors>({});
   const [saving, setSaving] = useState(false);
   const update = <K extends keyof AdventurePlanInput>(
@@ -1017,14 +1033,24 @@ function AdventureFormSheet({
             )}
           </label>
         </div>
-        <label>
-          Location
-          <input
-            aria-label="Adventure location"
-            value={plan.location}
-            onChange={(event) => update("location", event.target.value)}
-          />
-        </label>
+        <LocationSearchField
+          id="adventure-location"
+          spaceId={activeSpace?.id ?? ""}
+          adventureId={adventureId}
+          savedLocation={savedLocation}
+          draft={
+            plan.locationDraft ??
+            initialLocationDraft(savedLocation, plan.location)
+          }
+          onChange={(locationDraft) =>
+            setPlan((current) => ({
+              ...current,
+              location: locationDraft.label,
+              locationDraft,
+            }))
+          }
+          textOnlyWarning="Saved as text only. Select a result to show it on the map and use it for location-based weather."
+        />
         <label>
           Notes
           <textarea
@@ -1238,7 +1264,10 @@ type StopFormValue = {
   endTime: string;
   notes: string;
   travelMinutes: string;
+  locationDraft: LocationDraft;
 };
+
+type StopTextField = Exclude<keyof StopFormValue, "locationDraft">;
 
 const timeToInput = (value?: string) => {
   if (!value) return "";
@@ -1256,16 +1285,21 @@ const timeFromInput = (value: string) => {
 };
 
 function StopEditorSheet({
+  adventureId,
   stop,
   onClose,
   onSave,
 }: {
+  adventureId: string;
   stop?: AdventureStop;
   onClose: () => void;
-  onSave: (
-    stop: Omit<AdventureStop, "id" | "sortOrder" | "savedLocation">,
-  ) => Promise<void>;
+  onSave: (stop: StopDraft) => Promise<void>;
 }) {
+  const { activeSpace } = useWorkspace();
+  const savedLocation: SavedLocation = stop?.savedLocation ?? {
+    kind: "none",
+    label: "",
+  };
   const [value, setValue] = useState<StopFormValue>(() => ({
     title: stop?.title || "",
     location: stop?.location || "",
@@ -1273,6 +1307,7 @@ function StopEditorSheet({
     endTime: timeToInput(stop?.endTime),
     notes: stop?.notes || "",
     travelMinutes: stop?.optionalTravelTime?.match(/\d+/)?.[0] || "",
+    locationDraft: initialLocationDraft(savedLocation, stop?.location ?? ""),
   }));
   const [errors, setErrors] = useState<{
     title?: string;
@@ -1281,7 +1316,7 @@ function StopEditorSheet({
     form?: string;
   }>({});
   const [saving, setSaving] = useState(false);
-  const update = (key: keyof StopFormValue, next: string) => {
+  const update = (key: StopTextField, next: string) => {
     setValue((current) => ({ ...current, [key]: next }));
     if (key in errors)
       setErrors((current) => ({ ...current, [key]: undefined }));
@@ -1307,6 +1342,7 @@ function StopEditorSheet({
         optionalTravelTime: value.travelMinutes
           ? `${Number(value.travelMinutes)} min`
           : undefined,
+        locationDraft: value.locationDraft,
       });
     } catch (error) {
       setErrors({
@@ -1341,14 +1377,21 @@ function StopEditorSheet({
             </span>
           )}
         </label>
-        <label>
-          Location
-          <input
-            aria-label="Stop location"
-            value={value.location}
-            onChange={(event) => update("location", event.target.value)}
-          />
-        </label>
+        <LocationSearchField
+          id="stop-location"
+          spaceId={activeSpace?.id ?? ""}
+          adventureId={adventureId}
+          savedLocation={savedLocation}
+          draft={value.locationDraft}
+          onChange={(locationDraft) =>
+            setValue((current) => ({
+              ...current,
+              location: locationDraft.label,
+              locationDraft,
+            }))
+          }
+          textOnlyWarning="Saved as text only. Select a result to show this stop on the map."
+        />
         <div className="form-row">
           <label>
             Start time
@@ -2171,6 +2214,7 @@ export function AdventureDetail() {
         {stopEditor && (
           <StopEditorSheet
             key={stopEditor.stop?.id || "new-stop"}
+            adventureId={a.id}
             stop={stopEditor.stop}
             onClose={() => setStopEditor(null)}
             onSave={async (stop) => {
@@ -2214,6 +2258,8 @@ export function AdventureDetail() {
         {editOpen && (
           <AdventureFormSheet
             title="Edit adventure"
+            adventureId={a.id}
+            savedLocation={a.savedLocation}
             initialPlan={{
               title: a.title,
               description: a.description,
