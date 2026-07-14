@@ -14,6 +14,10 @@ export type IdeaCategoryFilter = "all" | "date-night" | Category;
 export type IdeaFilterStatus = IdeaStatus | "Planned";
 export type SchedulingFilter = "Upcoming" | "Unscheduled" | "Past";
 
+const canonicalCategoryIds = new Set<string>(
+  primaryCategories.map((category) => category.id),
+);
+
 export type AdvancedIdeaFilters = {
   statuses: IdeaFilterStatus[];
   addedByUserIds: string[];
@@ -60,8 +64,19 @@ const slugify = (value: string) =>
     .replace("trips-and-getaways", "trips-getaways")
     .replace("camping-and-travel", "camping-travel");
 
+export function isCategory(value: unknown): value is Category {
+  return typeof value === "string" && canonicalCategoryIds.has(value);
+}
+
+export function normalizeCategoryOrNull(
+  value: string | null | undefined,
+): Category | null {
+  if (!value) return null;
+  return aliases[slugify(value)] ?? null;
+}
+
 export function normalizeCategory(value: string): Category {
-  return aliases[slugify(value)] ?? "culture";
+  return normalizeCategoryOrNull(value) ?? "culture";
 }
 
 export function isLegacyDateNightCategory(value: string) {

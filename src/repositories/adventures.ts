@@ -1,8 +1,10 @@
 import { supabase } from "../lib/supabase";
-import { normalizeCategory } from "../idea-model";
+import { normalizeCategoryOrNull } from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
 import type {
   Adventure,
+  AdventureCoverSelection,
+  AdventureCoverVariant,
   AdventurePlanInput,
   AdventureStatus,
 } from "../types";
@@ -25,6 +27,7 @@ type AdventureRow = {
   location: string | null;
   notes: string | null;
   cover_image_url: string | null;
+  cover_variant: number | null;
   is_favorite: boolean;
   completed_at: string | null;
   created_by: string;
@@ -37,7 +40,7 @@ type AdventureRow = {
 
 const adventureColumns = `
   id, space_id, source_idea_id, title, description, category, status,
-  event_date, start_time, end_time, location, notes, cover_image_url,
+  event_date, start_time, end_time, location, notes, cover_image_url, cover_variant,
   is_favorite, completed_at, created_by, updated_by, created_at, updated_at,
   creator_profile:profiles!adventures_created_by_fkey(display_name),
   updater_profile:profiles!adventures_updated_by_fkey(display_name)
@@ -76,8 +79,9 @@ export function mapAdventure(row: AdventureRow): Adventure {
     endTime: displayTime(row.end_time),
     status: databaseToUiStatus[row.status],
     coverImage: row.cover_image_url ?? undefined,
+    coverVariant: normalizeCoverVariant(row.cover_variant),
     location: row.location ?? "Location to be decided",
-    category: normalizeCategory(row.category ?? "culture"),
+    category: normalizeCategoryOrNull(row.category) ?? undefined,
     sourceIdeaId: row.source_idea_id ?? undefined,
     stops: [],
     notes: row.notes ?? "",
@@ -89,6 +93,12 @@ export function mapAdventure(row: AdventureRow): Adventure {
     completedAt: row.completed_at ?? undefined,
     favorite: row.is_favorite,
   };
+}
+
+function normalizeCoverVariant(
+  value: number | null,
+): AdventureCoverVariant | undefined {
+  return value === 1 || value === 2 || value === 3 ? value : undefined;
 }
 
 function repositoryError(action: string, error: { message: string }) {
@@ -141,6 +151,7 @@ export async function createAdventure(
       location: plan.location.trim() || null,
       notes: plan.notes.trim() || null,
       cover_image_url: plan.coverImage?.trim() || null,
+      cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
       created_by: userId,
       updated_by: userId,
     })
@@ -167,6 +178,7 @@ export async function updateAdventure(
     location: plan.location.trim() || null,
     notes: plan.notes.trim() || null,
     cover_image_url: plan.coverImage?.trim() || null,
+    cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
     updated_by: userId,
   };
   if (!preserveCompletion) payload.status = uiToDatabaseStatus[plan.status];
@@ -186,12 +198,14 @@ export async function updateAdventureCover(
   spaceId: string,
   adventureId: string,
   userId: string,
-  coverImage: string,
+  selection: AdventureCoverSelection,
 ): Promise<Adventure> {
+  const coverImage = selection.coverImage?.trim() || null;
   const { data, error } = await supabase
     .from("adventures")
     .update({
-      cover_image_url: coverImage.trim() || null,
+      cover_image_url: coverImage,
+      cover_variant: coverImage ? null : selection.coverVariant ?? null,
       updated_by: userId,
     })
     .eq("space_id", spaceId)

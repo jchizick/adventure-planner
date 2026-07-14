@@ -50,6 +50,15 @@ import {
 } from "./idea-model";
 import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
+import {
+  GENERIC_ADVENTURE_COVER,
+  GENERIC_IDEA_ART,
+  getCategoryIllustration,
+  getCategoryCoverByVariant,
+  getStableCategoryCover,
+  resolveAdventureCover,
+  resolveMemoryCover,
+} from "./category-visuals";
 import { useWorkspace } from "./workspace";
 import {
   addLocalDays,
@@ -62,8 +71,11 @@ import {
   sortCalendarEvents,
   toLocalDateKey,
 } from "./calendar";
-import { PageHeader, QuickAdd, Sheet, StatusChip } from "./components";
+import { PageHeader, QuickAdd, SafeImage, Sheet, StatusChip } from "./components";
 import type {
+  Adventure,
+  AdventureCoverSelection,
+  AdventureCoverVariant,
   AdventurePlanInput,
   AdventureStop,
   AdventureLink,
@@ -233,7 +245,13 @@ export function Today() {
         }
       />
       <button className="hero" onClick={() => nav(`/adventures/${next.id}`)}>
-        <img src={next.coverImage || "/vaughan-day.png"} alt="" />
+        <SafeImage
+          src={resolveAdventureCover(next)}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt=""
+          width={1600}
+          height={800}
+        />
         <div className="hero-shade" />
         <span className="hero-label">NEXT ADVENTURE</span>
         <div className="hero-copy">
@@ -283,12 +301,19 @@ export function Today() {
         action={{ label: "See All", to: "/ideas", ariaLabel: "See all ideas" }}
       />
       <div className="idea-rail">
-        {prototypeIdeas.slice(0, 3).map((i, n) => (
+        {prototypeIdeas.slice(0, 3).map((i) => (
           <button key={i.id} onClick={() => nav("/ideas")}>
             <span>{i.title}</span>
             <small>{i.addedBy} added</small>
-            <div className={`mini-art art${n}`}>
-              {n === 0 ? "🧺" : n === 1 ? "🛶" : "🌿"}
+            <div className="mini-art">
+              <SafeImage
+                src={getCategoryIllustration(i.category)}
+                fallbackSrc={GENERIC_IDEA_ART}
+                alt=""
+                loading="lazy"
+                width={256}
+                height={256}
+              />
             </div>
           </button>
         ))}
@@ -611,18 +636,14 @@ export function Ideas() {
               }}
             >
               <div className={`idea-thumb ${i.category}`}>
-                <span>
-                  {(
-                    {
-                      "food-drink": "🍝",
-                      culture: "🏛️",
-                      "music-events": "🎸",
-                      "trips-getaways": "🏕️",
-                      "at-home": "🏡",
-                      outdoors: "🌲",
-                    } as Record<string, string>
-                  )[i.category] || "✨"}
-                </span>
+                <SafeImage
+                  src={getCategoryIllustration(i.category)}
+                  fallbackSrc={GENERIC_IDEA_ART}
+                  alt=""
+                  loading="lazy"
+                  width={256}
+                  height={256}
+                />
               </div>
               <div className="idea-body">
                 <h3>{i.title}</h3>
@@ -913,6 +934,30 @@ function AdventureFormSheet({
             value={plan.description}
             onChange={(event) => update("description", event.target.value)}
           />
+        </label>
+        <label>
+          Category
+          <select
+            aria-label="Adventure category"
+            value={plan.category ?? "culture"}
+            onChange={(event) => {
+              const category = event.target.value as Category;
+              setPlan((current) => ({
+                ...current,
+                category,
+                coverVariant:
+                  current.category === category
+                    ? current.coverVariant
+                    : undefined,
+              }));
+            }}
+          >
+            {primaryCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.label}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="form-row">
           <label>
@@ -1541,31 +1586,100 @@ function AdventureActionsMenu({
 }
 
 function CoverPhotoSheet({
-  currentCover,
+  adventure,
   onClose,
   onSave,
 }: {
-  currentCover?: string;
+  adventure: Pick<
+    Adventure,
+    "id" | "category" | "coverImage" | "coverVariant"
+  >;
   onClose: () => void;
-  onSave: (coverImage: string) => Promise<void>;
+  onSave: (selection: AdventureCoverSelection) => Promise<void>;
 }) {
-  const [coverImage, setCoverImage] = useState(currentCover ?? "");
+  type CoverMode = "automatic" | "custom" | AdventureCoverVariant;
+  type CustomStatus = "idle" | "loading" | "valid" | "invalid";
+  const currentCover = adventure.coverImage?.trim() || "";
+  const currentVariant = adventure.coverVariant;
+  const initialMode: CoverMode = currentCover
+    ? "custom"
+    : currentVariant ?? "automatic";
+  const automaticCover = getStableCategoryCover(
+    adventure.category,
+    adventure.id,
+  );
+  const [mode, setMode] = useState<CoverMode>(initialMode);
+  const [coverImage, setCoverImage] = useState(currentCover);
+  const [customStatus, setCustomStatus] = useState<CustomStatus>(
+    currentCover
+      ? /^https?:\/\//i.test(currentCover) || currentCover.startsWith("/")
+        ? "loading"
+        : "invalid"
+      : "idle",
+  );
+  const [lastValidPreview, setLastValidPreview] = useState(
+    getCategoryCoverByVariant(adventure.category, currentVariant) ??
+      automaticCover,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmed = coverImage.trim();
   const isSupported =
     !trimmed || /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/");
-  const preview = isSupported && trimmed ? trimmed : currentCover || "/vaughan-day.png";
+  const selectedVariant = typeof mode === "number" ? mode : undefined;
+  const selectedVariantCover = getCategoryCoverByVariant(
+    adventure.category,
+    selectedVariant,
+  );
+  const preview = mode === "custom" && isSupported && trimmed &&
+      customStatus !== "invalid"
+    ? trimmed
+    : selectedVariantCover ?? (mode === "custom"
+      ? lastValidPreview
+      : automaticCover);
+  const isDirty = mode !== initialMode ||
+    (mode === "custom" && trimmed !== currentCover);
+  const canSave = isDirty && !saving &&
+    (mode !== "custom" || isSupported && customStatus === "valid");
+
+  useEffect(() => {
+    if (mode !== "custom" || !trimmed || !isSupported) return;
+    let active = true;
+    const image = new Image();
+    image.onload = () => {
+      if (!active) return;
+      setCustomStatus("valid");
+      setLastValidPreview(trimmed);
+      setError(null);
+    };
+    image.onerror = () => {
+      if (!active) return;
+      setCustomStatus("invalid");
+      setError("We couldn’t load this image. Check the URL and try again.");
+    };
+    image.src = trimmed;
+    return () => {
+      active = false;
+    };
+  }, [isSupported, mode, trimmed]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!isSupported) {
-      setError("Enter an http(s) image URL or an app image path beginning with /.");
+    if (!canSave) {
+      if (mode === "custom" && !isSupported)
+        setError("Enter an http(s) image URL or an app image path beginning with /.");
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await onSave(trimmed);
+      await onSave(
+        mode === "custom"
+          ? { coverImage: trimmed }
+          : typeof mode === "number"
+          ? { coverVariant: mode }
+          : {},
+      );
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -1579,29 +1693,108 @@ function CoverPhotoSheet({
   return (
     <Sheet open title="Change cover photo" onClose={onClose}>
       <form className="cover-photo-form" onSubmit={submit} noValidate>
-        <img src={preview} alt="Adventure cover preview" />
-        <label>
-          Image URL
+        <p className="cover-photo-section-title">Current preview</p>
+        <SafeImage
+          src={preview}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt="Adventure cover preview"
+          width={1600}
+          height={800}
+        />
+        <section
+          className="cover-photo-options"
+          aria-labelledby="category-cover-heading"
+        >
+          <div>
+            <h3 id="category-cover-heading">Category covers</h3>
+            <small>
+              Choose a cover for this adventure, or keep the automatic rotation.
+            </small>
+          </div>
+          <button
+            type="button"
+            className="cover-auto-option"
+            aria-pressed={mode === "automatic"}
+            onClick={() => {
+              setMode("automatic");
+              setCoverImage("");
+              setCustomStatus("idle");
+              setError(null);
+            }}
+          >
+            <span>
+              <strong>Automatic</strong>
+              <small>Uses a stable category cover for this adventure.</small>
+            </span>
+            {mode === "automatic" && <Check aria-hidden="true" />}
+          </button>
+          <div className="cover-variant-row" aria-label="Category cover choices">
+            {([1, 2, 3] as const).map((variant) => {
+              const source = getCategoryCoverByVariant(
+                adventure.category,
+                variant,
+              ) ?? GENERIC_ADVENTURE_COVER;
+              const selected = mode === variant;
+              return (
+                <button
+                  type="button"
+                  className="cover-variant-option"
+                  aria-label={`Use category cover ${variant}`}
+                  aria-pressed={selected}
+                  key={variant}
+                  onClick={() => {
+                    setMode(variant);
+                    setCoverImage("");
+                    setCustomStatus("idle");
+                    setError(null);
+                  }}
+                >
+                  <SafeImage
+                    src={source}
+                    fallbackSrc={GENERIC_ADVENTURE_COVER}
+                    alt=""
+                    width={1600}
+                    height={800}
+                  />
+                  <span>Cover {variant}</span>
+                  {selected && (
+                    <Check className="cover-option-check" aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+        <label className="cover-custom-url">
+          Custom image URL
           <input
             type="url"
             value={coverImage}
             onChange={(event) => {
-              setCoverImage(event.target.value);
+              const nextValue = event.target.value;
+              const nextTrimmed = nextValue.trim();
+              const nextSupported = /^https?:\/\//i.test(nextTrimmed) ||
+                nextTrimmed.startsWith("/");
+              setCoverImage(nextValue);
+              setMode(nextTrimmed ? "custom" : "automatic");
+              setCustomStatus(
+                nextTrimmed ? nextSupported ? "loading" : "invalid" : "idle",
+              );
               setError(null);
             }}
             placeholder="https://example.com/adventure.jpg"
-            aria-invalid={!!error}
+            aria-invalid={mode === "custom" && customStatus === "invalid"}
           />
         </label>
         <small>
-          This app currently stores cover URLs. Clear the field to use the default cover.
+          Paste an http(s) image URL. A valid custom image overrides category covers.
         </small>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="sheet-actions">
           <button className="secondary" type="button" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button className="primary" type="submit" disabled={saving}>
+          <button className="primary" type="submit" disabled={!canSave}>
             {saving ? "Saving…" : "Save cover"}
           </button>
         </div>
@@ -1728,7 +1921,13 @@ export function AdventureDetail() {
   return (
     <div className="detail">
       <div className="detail-cover">
-        <img src={a.coverImage || "/vaughan-day.png"} alt="" />
+        <SafeImage
+          src={resolveAdventureCover(a)}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt=""
+          width={1600}
+          height={800}
+        />
         <button className="back" onClick={() => nav(-1)} aria-label="Go back">
           <ChevronLeft />
         </button>
@@ -2013,6 +2212,7 @@ export function AdventureDetail() {
               notes: a.notes,
               category: a.category,
               coverImage: a.coverImage,
+              coverVariant: a.coverVariant,
             }}
             submitLabel="Save changes"
             savingLabel="Saving…"
@@ -2025,10 +2225,10 @@ export function AdventureDetail() {
         )}
         {coverOpen && (
           <CoverPhotoSheet
-            currentCover={a.coverImage}
+            adventure={a}
             onClose={() => setCoverOpen(false)}
-            onSave={async (coverImage) => {
-              await updateAdventureCover(a.id, coverImage);
+            onSave={async (selection) => {
+              await updateAdventureCover(a.id, selection);
               setCoverOpen(false);
             }}
           />
@@ -2153,13 +2353,18 @@ export function Memories() {
           done.map((a) => (
             <button className="memory-card" key={a.id} onClick={() => nav(`/memories/${a.id}`)}>
               <div className="memory-art-cover">
-                {summaries[a.id]?.coverUrl || a.coverImage ? (
-                  <img src={summaries[a.id]?.coverUrl || a.coverImage} alt="" />
-                ) : (
-                  <span aria-hidden="true">🌅</span>
-                )}
+                <SafeImage
+                  src={resolveMemoryCover({
+                    adventure: a,
+                    firstPhotoUrl: summaries[a.id]?.coverUrl,
+                  })}
+                  fallbackSrc={GENERIC_ADVENTURE_COVER}
+                  alt=""
+                  loading="lazy"
+                  width={1600}
+                  height={800}
+                />
               </div>
-              <div className="memory-art">🌅</div>
               <small>{formatDate(a.date)}</small>
               <h3>{a.title}</h3>
               <p>{summaries[a.id]?.reflection || a.notes || a.description || a.location}</p>

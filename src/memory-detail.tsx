@@ -21,6 +21,11 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "./auth";
 import { formatAdventureDateTimeRange } from "./calendar";
+import {
+  GENERIC_ADVENTURE_COVER,
+  resolveMemoryCover,
+} from "./category-visuals";
+import { SafeImage } from "./components";
 import { useAdventureStore } from "./context";
 import {
   deleteMemoryPhoto,
@@ -194,7 +199,9 @@ export function MemoryDetail() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [editing, memory?.reflection]);
 
-  const heroImage = memory?.photos[0]?.url || adventure?.coverImage;
+  const heroImage = adventure
+    ? resolveMemoryCover({ adventure, photos: memory?.photos })
+    : GENERIC_ADVENTURE_COVER;
   const timeLabel = useMemo(
     () => adventure ? formatAdventureDateTimeRange({
       startDate: adventure.date,
@@ -278,8 +285,14 @@ export function MemoryDetail() {
 
   return (
     <div className="memory-detail-page">
-      <section className={`memory-hero ${heroImage ? "has-image" : ""}`}>
-        {heroImage ? <img src={heroImage} alt="" /> : <div className="memory-hero-fallback">🌅</div>}
+      <section className="memory-hero has-image">
+        <SafeImage
+          src={heroImage}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt=""
+          width={1600}
+          height={800}
+        />
         <div className="memory-hero-shade" />
         <button className="memory-back" onClick={() => nav(-1)} aria-label="Go back"><ArrowLeft /></button>
         <div className="memory-hero-content">

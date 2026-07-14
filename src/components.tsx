@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { IdeaStatus } from "./types";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ImgHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { useAuth } from "./auth";
 import { useWorkspace } from "./workspace";
 export const nav = [
@@ -132,6 +138,31 @@ export function PageHeader({
 }
 export function StatusChip({ status }: { status: IdeaStatus }) {
   return <span className={`status ${status.toLowerCase()}`}>{status}</span>;
+}
+export function SafeImage({
+  src,
+  fallbackSrc,
+  style,
+  ...props
+}: Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "onError"> & {
+  src: string;
+  fallbackSrc: string;
+}) {
+  const [failedPrimary, setFailedPrimary] = useState<string | null>(null);
+  const [failedFallbackFor, setFailedFallbackFor] = useState<string | null>(null);
+  const renderedSrc = failedPrimary === src ? fallbackSrc : src;
+  const hidden = renderedSrc === fallbackSrc && failedFallbackFor === src;
+  return (
+    <img
+      {...props}
+      src={renderedSrc}
+      style={{ ...style, visibility: hidden ? "hidden" : style?.visibility }}
+      onError={() => {
+        if (renderedSrc !== fallbackSrc) setFailedPrimary(src);
+        else setFailedFallbackFor(src);
+      }}
+    />
+  );
 }
 export function Sheet({
   open,

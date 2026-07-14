@@ -2,6 +2,11 @@ import type { Category } from "./idea-model";
 
 export type IdeaStatus = "Idea" | "Tentative" | "Confirmed";
 export type AdventureStatus = "Tentative" | "Confirmed" | "Completed";
+export type AdventureCoverVariant = 1 | 2 | 3;
+export type AdventureCoverSelection = {
+  coverImage?: string;
+  coverVariant?: AdventureCoverVariant;
+};
 export type { Category } from "./idea-model";
 export interface Idea {
   id: string;
@@ -54,6 +59,7 @@ export interface Adventure {
   endTime: string;
   status: AdventureStatus;
   coverImage?: string;
+  coverVariant?: AdventureCoverVariant;
   location: string;
   category?: Category;
   sourceIdeaId?: string;
@@ -119,4 +125,5 @@ export interface AdventurePlanInput {
   notes: string;
   category?: Category;
   coverImage?: string;
+  coverVariant?: AdventureCoverVariant;
 }

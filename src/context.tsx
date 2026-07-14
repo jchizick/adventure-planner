@@ -45,6 +45,7 @@ import {
 } from "./repositories/adventure-links";
 import type {
   Adventure,
+  AdventureCoverSelection,
   AdventurePlanInput,
   AdventureStop,
   CalendarEvent,
@@ -68,7 +69,10 @@ type Store = {
     plan: AdventurePlanInput,
   ) => Promise<Adventure>;
   updateAdventure: (id: string, plan: AdventurePlanInput) => Promise<void>;
-  updateAdventureCover: (id: string, coverImage: string) => Promise<void>;
+  updateAdventureCover: (
+    id: string,
+    selection: AdventureCoverSelection,
+  ) => Promise<void>;
   duplicateAdventure: (id: string) => Promise<Adventure>;
   deleteAdventure: (id: string) => Promise<void>;
   loadAdventureStops: (adventureId: string) => Promise<void>;
@@ -271,11 +275,11 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
           ),
         );
       },
-      updateAdventureCover: async (id, coverImage) => {
+      updateAdventureCover: async (id, selection) => {
         if (!user || !activeSpace)
           throw new Error("Open your shared space and try again.");
         replaceAdventure(
-          await updateAdventureCoverRow(activeSpace.id, id, user.id, coverImage),
+          await updateAdventureCoverRow(activeSpace.id, id, user.id, selection),
         );
       },
       duplicateAdventure: async (id) => {
