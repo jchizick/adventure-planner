@@ -272,6 +272,7 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
             user.id,
             plan,
             current.completed,
+            current,
           ),
         );
       },

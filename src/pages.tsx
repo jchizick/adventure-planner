@@ -72,6 +72,7 @@ import {
   toLocalDateKey,
 } from "./calendar";
 import { PageHeader, QuickAdd, SafeImage, Sheet, StatusChip } from "./components";
+import { WeatherIndicator } from "./weather";
 import type {
   Adventure,
   AdventureCoverSelection,
@@ -1961,11 +1962,19 @@ export function AdventureDetail() {
           })}
         </p>
         <div className="detail-meta">
-          <MapPin /> {a.location}
-          <span>
-            <Sun /> 23°C
-          </span>
+          <span className="detail-location"><MapPin /> {a.location}</span>
+          <WeatherIndicator
+            key={a.id}
+            adventure={a}
+            canEdit={canMutate}
+            onEdit={() => setEditOpen(true)}
+          />
         </div>
+        {a.locationWeatherWarning && (
+          <p className="location-weather-warning" role="status">
+            {a.locationWeatherWarning}
+          </p>
+        )}
         <nav className="tabs">
           {["Itinerary", "Notes", "Links", "Checklist"].map((t) => (
             <button

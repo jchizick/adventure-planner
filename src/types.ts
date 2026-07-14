@@ -61,6 +61,11 @@ export interface Adventure {
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
   location: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  geocodedLocation?: string;
+  locationWeatherWarning?: string;
   category?: Category;
   sourceIdeaId?: string;
   stops: AdventureStop[];
