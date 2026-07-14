@@ -75,6 +75,13 @@ import { PageHeader, QuickAdd, SafeImage, Sheet, StatusChip } from "./components
 import { WeatherIndicator } from "./weather";
 import { LocationSearchField } from "./location-search-field";
 import { initialLocationDraft } from "./location-field-state";
+import { AdventureStopsMapCard } from "./adventure-stops-map-card";
+import {
+  buildStopMapCameraTarget,
+  getItineraryStopColor,
+  prepareStopMap,
+  reconcileSelectedStopId,
+} from "./adventure-stops-map";
 import type { StopDraft } from "./repositories/adventure-stops";
 import type {
   Adventure,
@@ -107,51 +114,56 @@ const formatDate = (iso: string) =>
     day: "numeric",
   }).format(new Date(iso + "T12:00:00"));
 
-const ITINERARY_STOP_COLORS = [
-  "#b94d45",
-  "#ad6425",
-  "#5477a8",
-  "#567c50",
-  "#3e817c",
-  "#916817",
-] as const;
-const FINAL_STOP_COLOR = "#6d5cac";
-
-const getItineraryStopColor = (index: number, isFinalStop: boolean) =>
-  isFinalStop
-    ? FINAL_STOP_COLOR
-    : ITINERARY_STOP_COLORS[index % ITINERARY_STOP_COLORS.length];
-
 type ItineraryStopMarkerProps = {
   className: string;
-  index: number;
-  stopCount: number;
+  displayIndex: number;
+  isActualFinalStop: boolean;
   stopTitle: string;
-  style?: CSSProperties;
+  selected?: boolean;
+  onActivate?: () => void;
 };
 
 function ItineraryStopMarker({
   className,
-  index,
-  stopCount,
+  displayIndex,
+  isActualFinalStop,
   stopTitle,
-  style,
+  selected = false,
+  onActivate,
 }: ItineraryStopMarkerProps) {
-  const isFinalStop = index === stopCount - 1;
   const markerStyle = {
-    ...style,
-    "--stop-color": getItineraryStopColor(index, isFinalStop),
+    "--stop-color": getItineraryStopColor(
+      displayIndex,
+      isActualFinalStop,
+    ),
   } as CSSProperties;
+  const label = isActualFinalStop
+    ? `Final stop: ${stopTitle}`
+    : `Stop ${displayIndex + 1}: ${stopTitle}`;
+  const content = isActualFinalStop ? (
+    <Flag aria-hidden="true" />
+  ) : (
+    displayIndex + 1
+  );
 
-  return (
+  return onActivate ? (
+    <button
+      type="button"
+      className={`${className} ${selected ? "selected-stop" : ""}`}
+      style={markerStyle}
+      aria-label={`${label}. Show on map.`}
+      aria-pressed={selected}
+      onClick={onActivate}
+    >
+      {content}
+    </button>
+  ) : (
     <span
       className={className}
       style={markerStyle}
-      aria-label={
-        isFinalStop ? `Final stop: ${stopTitle}` : `Stop ${index + 1}: ${stopTitle}`
-      }
+      aria-label={label}
     >
-      {isFinalStop ? <Flag aria-hidden="true" /> : index + 1}
+      {content}
     </span>
   );
 }
@@ -1907,6 +1919,22 @@ export function AdventureDetail() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const orderedStops = useMemo(
+    () =>
+      [...(a?.stops ?? [])].sort(
+        (first, second) => first.sortOrder - second.sortOrder,
+      ),
+    [a?.stops],
+  );
+  const preparedStopMap = useMemo(
+    () => prepareStopMap(orderedStops),
+    [orderedStops],
+  );
+  const stopMapCameraTarget = useMemo(
+    () => buildStopMapCameraTarget(preparedStopMap.markers),
+    [preparedStopMap.markers],
+  );
   useEffect(() => {
     if (!adventureId) return;
     void loadAdventureStops(adventureId);
@@ -1937,8 +1965,12 @@ export function AdventureDetail() {
         <p>Adventure not found.</p>
       </div>
     );
-  const orderedStops = [...a.stops].sort(
-    (first, second) => first.sortOrder - second.sortOrder,
+  const activeSelectedStopId = reconcileSelectedStopId(
+    selectedStopId,
+    preparedStopMap.markers,
+  );
+  const mapMarkersByStopId = new Map(
+    preparedStopMap.markers.map((marker) => [marker.stopId, marker]),
   );
   const canMutate = memberships.some(
     (membership) => membership.spaceId === activeSpace?.id,
@@ -2060,43 +2092,37 @@ export function AdventureDetail() {
                 {stopsError}
               </p>
             )}
-            <div
-              className={`map-card ${orderedStops.length ? "" : "empty-route"}`}
-            >
-              {orderedStops.length ? (
-                <>
-                  {orderedStops.length > 1 && <div className="route-line" />}
-                  {orderedStops.map((stop, index) => (
-                    <ItineraryStopMarker
-                      className="pin dynamic-pin"
-                      key={stop.id}
-                      index={index}
-                      stopCount={orderedStops.length}
-                      stopTitle={stop.title}
-                      style={{
-                        left: `${10 + (index / Math.max(orderedStops.length - 1, 1)) * 78}%`,
-                        top: `${index % 2 ? 58 : 26}%`,
-                      }}
-                    />
-                  ))}
-                  <b>{orderedStops.length}-stop route</b>
-                </>
-              ) : (
-                <div className="route-empty-copy">
-                  <MapPin />
-                  <span>Your route will appear here.</span>
-                </div>
-              )}
-            </div>
+            {orderedStops.length > 0 && (
+              <AdventureStopsMapCard
+                preparedMap={preparedStopMap}
+                cameraTarget={stopMapCameraTarget}
+                mapKey={import.meta.env.VITE_GEOAPIFY_MAP_KEY?.trim() ?? ""}
+                selectedStopId={activeSelectedStopId}
+                onSelectStop={setSelectedStopId}
+              />
+            )}
             {orderedStops.length ? (
               <div className="stops">
-                {orderedStops.map((stop, index) => (
-                  <article key={stop.id}>
+                {orderedStops.map((stop, index) => {
+                  const mapMarker = mapMarkersByStopId.get(stop.id);
+                  const selected = activeSelectedStopId === stop.id;
+                  return (
+                    <article
+                    key={stop.id}
+                    className={selected ? "selected-map-stop" : undefined}
+                    data-map-selected={selected || undefined}
+                  >
                     <ItineraryStopMarker
                       className="stop-num"
-                      index={index}
-                      stopCount={orderedStops.length}
+                      displayIndex={index}
+                      isActualFinalStop={index === orderedStops.length - 1}
                       stopTitle={stop.title}
+                      selected={selected}
+                      onActivate={
+                        mapMarker
+                          ? () => setSelectedStopId(stop.id)
+                          : undefined
+                      }
                     />
                     <div className="stop-main">
                       <h3>{stop.title}</h3>
@@ -2145,8 +2171,9 @@ export function AdventureDetail() {
                         <Trash2 />
                       </button>
                     </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="empty-itinerary">
@@ -2221,6 +2248,10 @@ export function AdventureDetail() {
               if (stopEditor.mode === "edit" && stopEditor.stop)
                 await updateAdventureStop(a.id, stopEditor.stop.id, stop);
               else await addAdventureStop(a.id, stop);
+              if (stopEditor.mode === "edit" && stopEditor.stop)
+                setSelectedStopId((current) =>
+                  current === stopEditor.stop?.id ? null : current,
+                );
               setStopEditor(null);
             }}
           />
@@ -2246,6 +2277,9 @@ export function AdventureDetail() {
                   className="danger-button"
                   onClick={async () => {
                     await deleteAdventureStop(a.id, deleteCandidate.id);
+                    setSelectedStopId((current) =>
+                      current === deleteCandidate.id ? null : current,
+                    );
                     setDeleteCandidate(null);
                   }}
                 >

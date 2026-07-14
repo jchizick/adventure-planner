@@ -11,12 +11,13 @@ npm install
 cp .env.example .env.local
 ```
 
-Set these values in `.env.local` using the project URL and browser-safe
-publishable key from the Supabase dashboard:
+Set these values in `.env.local`. The project URL and browser-safe publishable
+key come from the Supabase dashboard; the map key comes from Geoapify:
 
 ```dotenv
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_GEOAPIFY_MAP_KEY=
 ```
 
 Never put a Supabase secret key, service-role key, database password, or real
@@ -110,21 +111,37 @@ npx supabase secrets set GEOAPIFY_GEOCODING_KEY=YOUR_SERVER_SIDE_KEY
 
 `GEOAPIFY_GEOCODING_KEY` must not be added to `.env.example`, prefixed with
 `VITE_`, or otherwise exposed to the browser. Deploying the function is a
-separate manual step after its secret is configured; Phase 2 does not require a
-browser map key.
+separate manual step after its secret is configured.
+
+## Browser map configuration
+
+The itinerary stop map uses a separate public Geoapify key through
+`VITE_GEOAPIFY_MAP_KEY`. Create or select a Geoapify project, enable map-tile
+access, and place its browser key in the ignored `.env.local` file. This key is
+embedded in the Vite browser bundle and must never be reused as the server-only
+`GEOAPIFY_GEOCODING_KEY`.
+
+Before hosting the app, restrict the browser key to every exact application
+origin that should load tiles, including the chosen local origin and each
+production or preview origin. Review the Geoapify project quota and billing
+limits, configure usage alerts where available, and verify the
+`osm-bright-grey` MapLibre style manually after changing restrictions. The map
+keeps Geoapify and OpenStreetMap attribution visible. See the
+[Geoapify map-tile documentation](https://apidocs.geoapify.com/docs/maps/) for
+provider setup and current style URLs.
+
+If the public key is absent, invalid, over quota, or rejected by its origin
+rules, the Adventure detail page keeps the itinerary list usable and shows a
+recoverable map fallback instead of crashing.
 
 ### Location persistence rollout compatibility
 
-Adventure and stop repositories accept the explicit `LocationDraft` contract,
-but the current pre-autocomplete forms still submit plain text. During this
-intermediate rollout, edits compare the trimmed submitted label with the
-previously loaded `SavedLocation` label: an unchanged final label preserves all
-legacy or confirmed metadata, changed text becomes text-only and clears stale
-geographic metadata, and an empty value clears the location. Creation and Idea
-promotion have no previous saved location, so their plain text is always stored
-as text-only and is never automatically geocoded. If a user edits a label and
-then restores it exactly before submitting, the adapter safely treats the final
-unchanged value as preserve. Phase 4 forms will send explicit intent instead.
+Adventure, stop, and Idea-promotion forms now send explicit `LocationDraft`
+intent. Untouched saved locations preserve metadata, selected candidates become
+confirmed, edited labels become text-only and clear stale metadata, and removed
+locations clear every geographic field. The Phase 3 label-compatibility adapter
+remains only as a safe boundary for older call sites during rollout; the updated
+forms do not rely on final-label equality.
 
 ## Verification
 
