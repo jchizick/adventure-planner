@@ -285,6 +285,30 @@ export async function updateAdventureCover(
   return mapAdventure(data as unknown as AdventureRow);
 }
 
+export async function enableAdventureWeather(
+  spaceId: string,
+  adventureId: string,
+  userId: string,
+  adventure: Adventure,
+): Promise<Adventure> {
+  const location = adventure.location === "Location to be decided"
+    ? ""
+    : adventure.location.trim();
+  if (!location) throw new Error("Add a location before enabling weather.");
+  const coordinates = await geocodeAdventureLocation(spaceId, location);
+  if (!coordinates)
+    throw new Error("Weather could not be enabled for this location. Try again.");
+  const { data, error } = await supabase
+    .from("adventures")
+    .update({ ...coordinatePayload(coordinates), updated_by: userId })
+    .eq("space_id", spaceId)
+    .eq("id", adventureId)
+    .select(adventureColumns)
+    .single();
+  if (error) throw repositoryError("enable weather for", error);
+  return mapAdventure(data as unknown as AdventureRow);
+}
+
 export async function duplicateAdventure(
   spaceId: string,
   adventureId: string,

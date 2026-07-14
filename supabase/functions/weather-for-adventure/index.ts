@@ -17,6 +17,7 @@ const json = (body: unknown, status = 200) =>
 
 type AdventureRow = {
   id: string;
+  location: string | null;
   latitude: number | null;
   longitude: number | null;
   timezone: string | null;
@@ -53,7 +54,11 @@ type WeatherPayload =
     }
   | { status: "too-early"; availableFrom: string }
   | { status: "missing-location" }
+  | { status: "missing-coordinates" }
   | { status: "missing-time" }
+  | { status: "invalid-timezone" }
+  | { status: "provider-unavailable" }
+  | { status: "no-hourly-match" }
   | { status: "unavailable"; message?: string };
 
 type HourlyResponse = {
@@ -289,25 +294,24 @@ Deno.serve(async (request) => {
   const { data, error } = await client
     .from("adventures")
     .select(
-      "id, latitude, longitude, timezone, event_date, start_time, end_time, status, completed_at, updated_at",
+      "id, location, latitude, longitude, timezone, event_date, start_time, end_time, status, completed_at, updated_at",
     )
     .eq("id", body.adventureId)
     .maybeSingle();
   if (error || !data) return json({ error: "Adventure not found." }, 404);
   const adventure = data as AdventureRow;
+  if (!adventure.location?.trim())
+    return json({ status: "missing-location" } satisfies WeatherPayload);
   if (
     adventure.latitude === null ||
     adventure.longitude === null ||
     !adventure.timezone
   )
-    return json({ status: "missing-location" } satisfies WeatherPayload);
+    return json({ status: "missing-coordinates" } satisfies WeatherPayload);
   if (!adventure.start_time)
     return json({ status: "missing-time" } satisfies WeatherPayload);
   if (!validTimeZone(adventure.timezone))
-    return json({
-      status: "unavailable",
-      message: "The saved timezone is invalid.",
-    } satisfies WeatherPayload);
+    return json({ status: "invalid-timezone" } satisfies WeatherPayload);
 
   const startTime = adventure.start_time.slice(0, 5);
   const targetKey = `${adventure.event_date}T${startTime}`;
@@ -372,8 +376,6 @@ Deno.serve(async (request) => {
       url.searchParams.set("temperature_unit", "celsius");
       url.searchParams.set("wind_speed_unit", "kmh");
       url.searchParams.set("precipitation_unit", "mm");
-      if (mode === "forecast")
-        url.searchParams.set("forecast_days", String(FORECAST_DAYS));
       const normalized = normalizeHourly(
         await providerJson(url),
         adventure.start_time,
@@ -381,7 +383,7 @@ Deno.serve(async (request) => {
         fetchedAt,
       );
       if (!normalized)
-        throw new Error("provider response did not contain the target hour");
+        return json({ status: "no-hourly-match" } satisfies WeatherPayload);
       payload = normalized;
       const daysAway = dayDifference(today, adventure.event_date);
       ttlHours =
@@ -399,7 +401,7 @@ Deno.serve(async (request) => {
       adventure.id,
       providerError instanceof Error ? providerError.message : providerError,
     );
-    return json({ status: "unavailable" } satisfies WeatherPayload);
+    return json({ status: "provider-unavailable" } satisfies WeatherPayload);
   }
 
   if (admin) {

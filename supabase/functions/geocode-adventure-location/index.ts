@@ -25,6 +25,21 @@ type GeocodingResult = {
 const textPart = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
+const comparable = (value: string) =>
+  value.toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
+
+function candidateScore(candidate: GeocodingResult, queryParts: string[]) {
+  const searchable = comparable(
+    [candidate.name, candidate.admin1, candidate.country]
+      .filter((value): value is string => typeof value === "string")
+      .join(" "),
+  );
+  return queryParts.reduce(
+    (score, part) => score + (searchable.includes(comparable(part)) ? 1 : 0),
+    0,
+  );
+}
+
 function publishableKeyFromEnvironment() {
   const direct =
     Deno.env.get("SUPABASE_ANON_KEY") ??
@@ -79,13 +94,18 @@ Deno.serve(async (request) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
   try {
-    const fallbackQuery = query.includes(",")
-      ? query.split(",").slice(1).join(",").trim()
-      : "";
+    const queryParts = query
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const cityQuery = queryParts[0] ?? "";
+    const fallbackQuery = queryParts.slice(1).join(", ");
     const searches = [
-      ...new Set([query, fallbackQuery].filter((value) => value.length >= 2)),
+      ...new Set(
+        [query, cityQuery, fallbackQuery].filter((value) => value.length >= 2),
+      ),
     ];
-    let match: GeocodingResult | undefined;
+    const candidates: GeocodingResult[] = [];
     for (const search of searches) {
       const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
       url.searchParams.set("name", search);
@@ -100,17 +120,28 @@ Deno.serve(async (request) => {
       const provider = (await response.json()) as {
         results?: GeocodingResult[];
       };
-      match = provider.results?.find(
-        (candidate) =>
-          typeof candidate.latitude === "number" &&
-          Number.isFinite(candidate.latitude) &&
-          typeof candidate.longitude === "number" &&
-          Number.isFinite(candidate.longitude) &&
-          typeof candidate.timezone === "string" &&
-          candidate.timezone.length > 0,
+      candidates.push(
+        ...(provider.results ?? []).filter(
+          (candidate) =>
+            typeof candidate.latitude === "number" &&
+            Number.isFinite(candidate.latitude) &&
+            typeof candidate.longitude === "number" &&
+            Number.isFinite(candidate.longitude) &&
+            typeof candidate.timezone === "string" &&
+            candidate.timezone.length > 0,
+        ),
       );
-      if (match) break;
     }
+    const match = candidates
+      .map((candidate, index) => ({
+        candidate,
+        index,
+        score: candidateScore(candidate, queryParts),
+      }))
+      .sort(
+        (first, second) =>
+          second.score - first.score || first.index - second.index,
+      )[0]?.candidate;
     if (!match) return json({ result: null });
     const label = [
       textPart(match.name),

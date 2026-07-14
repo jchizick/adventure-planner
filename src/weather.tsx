@@ -40,7 +40,11 @@ export type AdventureWeather =
     }
   | { status: "too-early"; availableFrom: string }
   | { status: "missing-location" }
+  | { status: "missing-coordinates" }
   | { status: "missing-time" }
+  | { status: "invalid-timezone" }
+  | { status: "provider-unavailable" }
+  | { status: "no-hourly-match" }
   | { status: "unavailable"; message?: string };
 
 type WeatherPresentation = {
@@ -78,9 +82,25 @@ function isAdventureWeather(value: unknown): value is AdventureWeather {
     "historical",
     "too-early",
     "missing-location",
+    "missing-coordinates",
     "missing-time",
+    "invalid-timezone",
+    "provider-unavailable",
+    "no-hourly-match",
     "unavailable",
   ].includes(String(value.status));
+}
+
+async function weatherFromInvocationError(error: unknown) {
+  if (!error || typeof error !== "object" || !("context" in error)) return null;
+  const context = (error as { context?: unknown }).context;
+  if (!(context instanceof Response)) return null;
+  try {
+    const body: unknown = await context.clone().json();
+    return isAdventureWeather(body) ? body : null;
+  } catch {
+    return null;
+  }
 }
 
 function weatherFingerprint(adventure: Adventure) {
@@ -108,7 +128,9 @@ function useAdventureWeather(adventure: Adventure) {
     adventure.latitude === undefined ||
     adventure.longitude === undefined ||
     !adventure.timezone
-      ? { status: "missing-location" }
+      ? adventure.location === "Location to be decided"
+        ? { status: "missing-location" }
+        : { status: "missing-coordinates" }
       : !adventure.startTime
         ? { status: "missing-time" }
         : null;
@@ -130,9 +152,14 @@ function useAdventureWeather(adventure: Adventure) {
         body: { adventureId: adventure.id },
         signal: controller.signal,
       })
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         if (controller.signal.aborted) return;
-        if (error || !isAdventureWeather(data)) {
+        const errorWeather = error
+          ? await weatherFromInvocationError(error)
+          : null;
+        if (controller.signal.aborted) return;
+        const weather = isAdventureWeather(data) ? data : errorWeather;
+        if (!weather) {
           if (import.meta.env.DEV)
             console.warn(
               "Adventure weather failed",
@@ -141,7 +168,7 @@ function useAdventureWeather(adventure: Adventure) {
           setResult({ key: requestKey, weather: { status: "unavailable" } });
           return;
         }
-        setResult({ key: requestKey, weather: data });
+        setResult({ key: requestKey, weather });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -201,15 +228,19 @@ type WeatherIndicatorProps = {
   adventure: Adventure;
   canEdit: boolean;
   onEdit: () => void;
+  onEnable: () => Promise<void>;
 };
 
 export function WeatherIndicator({
   adventure,
   canEdit,
   onEdit,
+  onEnable,
 }: WeatherIndicatorProps) {
   const { weather, loading, retry } = useAdventureWeather(adventure);
   const [open, setOpen] = useState(false);
+  const [enabling, setEnabling] = useState(false);
+  const [enableError, setEnableError] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -363,6 +394,26 @@ export function WeatherIndicator({
     ) : (
       <span className="weather-state">Add location for weather</span>
     );
+  if (weather.status === "missing-coordinates")
+    return canEdit ? (
+      <button
+        className="weather-state weather-action"
+        type="button"
+        disabled={enabling}
+        title={enableError ? "Weather could not be enabled. Try again." : undefined}
+        onClick={() => {
+          setEnabling(true);
+          setEnableError(false);
+          void onEnable()
+            .catch(() => setEnableError(true))
+            .finally(() => setEnabling(false));
+        }}
+      >
+        {enabling ? "Enabling weather…" : "Enable weather"}
+      </button>
+    ) : (
+      <span className="weather-state">Weather needs location setup</span>
+    );
   if (weather.status === "missing-time")
     return canEdit ? (
       <button
@@ -374,6 +425,29 @@ export function WeatherIndicator({
       </button>
     ) : (
       <span className="weather-state">Add time for weather</span>
+    );
+  if (weather.status === "provider-unavailable")
+    return (
+      <button
+        className="weather-state weather-action"
+        type="button"
+        onClick={retry}
+      >
+        <RefreshCw aria-hidden="true" /> Weather temporarily unavailable
+      </button>
+    );
+  if (
+    weather.status === "invalid-timezone" ||
+    weather.status === "no-hourly-match"
+  )
+    return (
+      <button
+        className="weather-state weather-action"
+        type="button"
+        onClick={retry}
+      >
+        <RefreshCw aria-hidden="true" /> Weather unavailable
+      </button>
     );
   return (
     <button
