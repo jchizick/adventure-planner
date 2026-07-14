@@ -98,6 +98,21 @@ functional and the development build presents a copyable invitation URL. A
 production build reports that delivery is not configured and never exposes the
 raw token.
 
+## Location candidate search
+
+The authenticated `search-locations` Edge Function uses Geoapify Address
+Autocomplete to return provider-ranked location candidates. Configure its
+server-only key as a Supabase Edge Function secret:
+
+```bash
+npx supabase secrets set GEOAPIFY_GEOCODING_KEY=YOUR_SERVER_SIDE_KEY
+```
+
+`GEOAPIFY_GEOCODING_KEY` must not be added to `.env.example`, prefixed with
+`VITE_`, or otherwise exposed to the browser. Deploying the function is a
+separate manual step after its secret is configured; Phase 2 does not require a
+browser map key.
+
 ## Verification
 
 ```bash
