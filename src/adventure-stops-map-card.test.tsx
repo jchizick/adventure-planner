@@ -163,4 +163,17 @@ describe("AdventureStopsMapCard", () => {
     expect(pagesSource).not.toContain('from "maplibre-gl"');
     expect(pagesSource).not.toContain("route-line");
   });
+
+  it("configures one compact attribution control with every required source", () => {
+    expect(lazyMapSource).toContain("attributionControl: false");
+    expect(lazyMapSource).toMatch(
+      /new AttributionControl\(\{\s*compact: true,/,
+    );
+    expect(lazyMapSource.match(/new AttributionControl/g)).toHaveLength(1);
+    expect(lazyMapSource).toContain("https://www.geoapify.com/");
+    expect(lazyMapSource).toContain("https://openmaptiles.org/");
+    expect(lazyMapSource).toContain(
+      "https://www.openstreetmap.org/copyright",
+    );
+  });
 });
