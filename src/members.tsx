@@ -523,7 +523,7 @@ export function InvitePage() {
     return <AppLoading message="Checking your invitation…" />;
 
   return (
-    <main className="access-page">
+    <main className="access-page invite-access-page">
       <section className="access-card invite-card" aria-labelledby="invite-title">
         <div className="access-brand"><Users aria-hidden="true" /><span>Our Adventures</span></div>
         {error || workspaceError || !profile || !invitation ? (
@@ -539,10 +539,16 @@ export function InvitePage() {
               <h1 id="invite-title">Join {invitation.spaceName}</h1>
               <p>{invitation.inviterName} invited {invitation.invitedEmail} to plan adventures together.</p>
             </div>
-            <div className={`invitation-summary ${invitation.status}`}>
-              <span>Status</span><strong>{invitation.status}</strong>
-              <span>Expires</span><strong>{formatDate(invitation.expiresAt)}</strong>
-            </div>
+            <dl className={`invitation-summary ${invitation.status}`}>
+              <div>
+                <dt>Status</dt>
+                <dd>{invitation.status}</dd>
+              </div>
+              <div>
+                <dt>Expires</dt>
+                <dd>{formatDate(invitation.expiresAt)}</dd>
+              </div>
+            </dl>
             {invitation.status === "pending" ? (
               <button
                 className="access-primary"
