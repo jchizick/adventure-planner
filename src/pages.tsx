@@ -36,8 +36,8 @@ import {
   Plane,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
-import { ideas as prototypeIdeas } from "./data";
 import { useIdeas } from "./ideas";
+import { selectRecentIdeas } from "./recent-ideas";
 import {
   countAdvancedIdeaFilters,
   emptyAdvancedIdeaFilters,
@@ -178,10 +178,16 @@ function ItineraryStopMarker({
 export function Today() {
   const nav = useNavigate();
   const { activeSpace } = useWorkspace();
+  const {
+    ideas,
+    loading: ideasLoading,
+    error: ideasError,
+  } = useIdeas();
   const { adventures, loading, error, retry, createAdventure } =
     useAdventureStore();
   const spaceName = activeSpace?.name ?? "Our Adventures";
   const [creating, setCreating] = useState(false);
+  const recentIdeas = useMemo(() => selectRecentIdeas(ideas), [ideas]);
   const upcoming = [...adventures]
     .filter((a) => !a.completed)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -325,24 +331,48 @@ export function Today() {
         title="New Ideas"
         action={{ label: "See All", to: "/ideas", ariaLabel: "See all ideas" }}
       />
-      <div className="idea-rail">
-        {prototypeIdeas.slice(0, 3).map((i) => (
-          <button key={i.id} onClick={() => nav("/ideas")}>
-            <span>{i.title}</span>
-            <small>{i.addedBy} added</small>
-            <div className="mini-art">
-              <SafeImage
-                src={getCategoryIllustration(i.category)}
-                fallbackSrc={GENERIC_IDEA_ART}
-                alt=""
-                loading="lazy"
-                width={256}
-                height={256}
-              />
+      {ideasLoading ? (
+        <div
+          className="idea-rail idea-rail-loading"
+          role="status"
+          aria-label="Loading new ideas"
+        >
+          {[0, 1, 2].map((index) => (
+            <div className="idea-rail-skeleton" aria-hidden="true" key={index}>
+              <span />
+              <small />
+              <div />
             </div>
-          </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : ideasError ? (
+        <p className="today-ideas-state" role="status">
+          New ideas are temporarily unavailable.
+        </p>
+      ) : recentIdeas.length ? (
+        <div className="idea-rail">
+          {recentIdeas.map((idea) => (
+            <button key={idea.id} onClick={() => nav("/ideas")}>
+              <span>{idea.title}</span>
+              <small>Added by {idea.addedBy}</small>
+              <div className="mini-art">
+                <SafeImage
+                  src={getCategoryIllustration(idea.category)}
+                  fallbackSrc={GENERIC_IDEA_ART}
+                  alt=""
+                  loading="lazy"
+                  width={256}
+                  height={256}
+                />
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="today-ideas-state">
+          No ideas yet — add one for your next adventure.
+        </p>
+      )}
       <QuickAdd onClick={() => setCreating(true)} />
       {createSheet}
     </div>

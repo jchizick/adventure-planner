@@ -9,7 +9,7 @@ These instructions apply to the entire repository. Treat statements under **Repo
 - This is **Our Adventures**, a private, mobile-first shared planner for Jordan and Liz. Space names and membership are live Supabase data; never hard-code the current space name, users, emails, or IDs.
 - Authenticated routes cover Today, Ideas, Calendar, Memories, People & Invitations, Adventure details, and completed-Adventure memory details. See `src/App.tsx`.
 - Adventures include schedules, locations, covers, itineraries, notes, links, checklists, completion, weather, and memories with photos.
-- `src/data.ts` still supplies the small prototype Idea rail shown on Today. The main Ideas and Adventure features use Supabase.
+- Today, Ideas, and Adventure features use live Supabase-backed provider state.
 
 ### Product rules
 

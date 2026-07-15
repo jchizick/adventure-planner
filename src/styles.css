@@ -305,6 +305,37 @@ main {
   padding: 12px;
   overflow: hidden;
 }
+.idea-rail-skeleton {
+  height: 142px;
+  padding: 12px;
+  border: 1px solid #ebe4dc;
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.idea-rail-skeleton span,
+.idea-rail-skeleton small,
+.idea-rail-skeleton div {
+  display: block;
+  border-radius: 999px;
+  background: #eee8e1;
+}
+.idea-rail-skeleton span { width: 72%; height: 12px; }
+.idea-rail-skeleton small { width: 48%; height: 9px; margin-top: 8px; }
+.idea-rail-skeleton div { width: 58px; height: 58px; margin: 18px auto 0; }
+.today-ideas-state {
+  min-height: 92px;
+  margin: 0;
+  padding: 24px 18px;
+  border: 1px dashed #d9cfc5;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: rgba(255, 253, 249, 0.72);
+  font-size: 12px;
+  text-align: center;
+}
 .idea-rail span,
 .idea-rail small {
   display: block;
