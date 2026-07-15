@@ -2685,7 +2685,7 @@ main {
 .invitation-summary strong { text-transform: capitalize; }
 
 @media (max-width: 600px) {
-  .members-page { padding: 18px 16px 92px; }
+  .members-page { padding: 22px 16px 92px; }
   .settings-card { padding: 16px; }
   .invite-form > div { grid-template-columns: 1fr; }
   .invite-form button { width: 100%; }
@@ -2718,7 +2718,8 @@ main {
 }
 .mobile-account {
   min-height: 64px;
-  padding: 8px 15px;
+  padding: 8px 15px 15px;
+  border-bottom: 1px solid var(--divider);
   display: flex;
   align-items: center;
   justify-content: space-between;

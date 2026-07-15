@@ -3,6 +3,10 @@
 import { cleanup, render, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import componentsSource from "./components.tsx?raw";
+import memoryDetailSource from "./memory-detail.tsx?raw";
+import membersSource from "./members.tsx?raw";
+import pagesSource from "./pages.tsx?raw";
 
 vi.mock("./auth", () => ({
   useAuth: () => ({ signOut: vi.fn() }),
@@ -55,5 +59,12 @@ describe("application branding", () => {
     expect(header.queryByText("Jordan & Liz")).toBeNull();
     expect(header.getByRole("link", { name: "People and invitations" })).toBeTruthy();
     expect(header.getByRole("button", { name: "Sign out" })).toBeTruthy();
+  });
+
+  it("owns the single shared mobile header instead of duplicating it in pages", () => {
+    expect(componentsSource.match(/className="mobile-account"/g)).toHaveLength(1);
+    for (const routeSource of [pagesSource, membersSource, memoryDetailSource]) {
+      expect(routeSource).not.toContain('className="mobile-account"');
+    }
   });
 });
