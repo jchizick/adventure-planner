@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  CalendarHeart,
   Image,
   Lightbulb,
   LogOut,
@@ -21,7 +22,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "./auth";
 import { useWorkspace } from "./workspace";
 export const nav = [
-  ["/today", "Today", CalendarDays],
+  ["/today", "Today", CalendarHeart],
   ["/ideas", "Ideas", Lightbulb],
   ["/calendar", "Calendar", CalendarDays],
   ["/memories", "Memories", Image],
