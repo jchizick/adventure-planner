@@ -29,6 +29,11 @@ export function selectLocationDraft(
   };
 }
 
-export function shouldShowTextOnlyWarning(draft: LocationDraft) {
-  return draft.intent === "text-only" && Boolean(draft.label.trim());
+export function shouldShowTextOnlyWarning(
+  draft: LocationDraft,
+  savedLocation: SavedLocation,
+) {
+  if (!draft.label.trim()) return false;
+  if (draft.intent === "text-only") return true;
+  return draft.intent === "preserve" && savedLocation.kind === "text";
 }

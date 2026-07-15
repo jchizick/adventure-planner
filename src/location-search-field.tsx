@@ -192,7 +192,7 @@ export function LocationSearchField({
     selectedCandidate?.formattedAddress ||
     preservedConfirmed?.candidate.formattedAddress ||
     preservedLegacy?.formattedAddress;
-  const showWarning = shouldShowTextOnlyWarning(draft);
+  const showWarning = shouldShowTextOnlyWarning(draft, savedLocation);
   const describedBy = [helpId, showWarning ? warningId : null]
     .filter(Boolean)
     .join(" ");

@@ -51,11 +51,13 @@ function Harness({
   initialDraft,
   searchLocations,
   onDraft,
+  textOnlyWarning = "Saved as text only. Select a result to show it on the map.",
 }: {
   initialSaved?: SavedLocation;
   initialDraft?: LocationDraft;
   searchLocations: SearchLocations;
   onDraft?: (draft: LocationDraft) => void;
+  textOnlyWarning?: string;
 }) {
   const [draft, setDraft] = useState(
     initialDraft ?? initialLocationDraft(initialSaved),
@@ -70,9 +72,29 @@ function Harness({
         setDraft(next);
         onDraft?.(next);
       }}
-      textOnlyWarning="Saved as text only. Select a result to show it on the map."
+      textOnlyWarning={textOnlyWarning}
       searchLocations={searchLocations}
     />
+  );
+}
+
+function UnrelatedEditHarness({
+  savedLocation,
+  searchLocations,
+}: {
+  savedLocation: SavedLocation;
+  searchLocations: SearchLocations;
+}) {
+  const [notes, setNotes] = useState("");
+  return (
+    <>
+      <input
+        aria-label="Notes"
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+      />
+      <Harness initialSaved={savedLocation} searchLocations={searchLocations} />
+    </>
   );
 }
 
@@ -87,6 +109,136 @@ afterEach(() => {
 });
 
 describe("LocationSearchField", () => {
+  it("shows the Adventure warning immediately for reopened saved text", () => {
+    const searchLocations = vi.fn<SearchLocations>();
+    render(
+      <Harness
+        initialSaved={{ kind: "text", label: "West entrance" }}
+        searchLocations={searchLocations}
+        textOnlyWarning="Adventure text-only warning"
+      />,
+    );
+    expect(screen.getByText("Adventure text-only warning")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Location" })).toHaveProperty(
+      "value",
+      "West entrance",
+    );
+    expect(searchLocations).not.toHaveBeenCalled();
+  });
+
+  it("shows the stop warning immediately for reopened saved text", () => {
+    render(
+      <Harness
+        initialSaved={{ kind: "text", label: "Side door" }}
+        searchLocations={vi.fn<SearchLocations>()}
+        textOnlyWarning="Stop text-only warning"
+      />,
+    );
+    expect(screen.getByText("Stop text-only warning")).toBeTruthy();
+  });
+
+  it("preserves saved text and its warning through an unrelated edit", () => {
+    render(
+      <UnrelatedEditHarness
+        savedLocation={{ kind: "text", label: "West entrance" }}
+        searchLocations={vi.fn<SearchLocations>()}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Notes" }), {
+      target: { value: "Bring tickets" },
+    });
+    expect(screen.getByRole("combobox", { name: "Location" })).toHaveProperty(
+      "value",
+      "West entrance",
+    );
+    expect(
+      screen.getByText(/Saved as text only/, { selector: "p" }),
+    ).toBeTruthy();
+  });
+
+  it("does not warn for untouched confirmed, legacy, or empty locations", () => {
+    const searchLocations = vi.fn<SearchLocations>();
+    const { rerender } = render(
+      <Harness
+        initialSaved={{
+          kind: "confirmed",
+          label: toronto.label,
+          candidate: toronto,
+          confirmedAt: "2026-07-14T20:00:00.000Z",
+        }}
+        searchLocations={searchLocations}
+      />,
+    );
+    expect(
+      screen.queryByText(/Saved as text only/, { selector: "p" }),
+    ).toBeNull();
+
+    rerender(
+      <Harness
+        initialSaved={{
+          kind: "legacy",
+          label: "Toronto",
+          latitude: toronto.latitude,
+          longitude: toronto.longitude,
+        }}
+        searchLocations={searchLocations}
+      />,
+    );
+    expect(
+      screen.queryByText(/Saved as text only/, { selector: "p" }),
+    ).toBeNull();
+
+    rerender(<Harness searchLocations={searchLocations} />);
+    expect(
+      screen.queryByText(/Saved as text only/, { selector: "p" }),
+    ).toBeNull();
+  });
+
+  it("warns for new raw text", () => {
+    render(
+      <Harness
+        initialDraft={{ label: "Meeting point", intent: "text-only" }}
+        searchLocations={vi.fn<SearchLocations>()}
+      />,
+    );
+    expect(
+      screen.getByText(/Saved as text only/, { selector: "p" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps confirmed metadata invalidated after editing and restoring its label", () => {
+    const confirmed: SavedLocation = {
+      kind: "confirmed",
+      label: toronto.label,
+      candidate: toronto,
+      confirmedAt: "2026-07-14T20:00:00.000Z",
+    };
+    const onDraft = vi.fn();
+    render(
+      <Harness
+        initialSaved={confirmed}
+        searchLocations={vi.fn<SearchLocations>()}
+        onDraft={onDraft}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Location" });
+    fireEvent.change(input, { target: { value: "Toronto edited" } });
+    expect(screen.queryByText("Confirmed location")).toBeNull();
+    expect(
+      screen.getByText(/Saved as text only/, { selector: "p" }),
+    ).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: toronto.label } });
+    expect(onDraft).toHaveBeenLastCalledWith({
+      label: toronto.label,
+      intent: "text-only",
+    });
+    expect(screen.queryByText("Confirmed location")).toBeNull();
+    expect(
+      screen.getByText(/Saved as text only/, { selector: "p" }),
+    ).toBeTruthy();
+  });
+
   it("does not search initially or below three trimmed characters", () => {
     vi.useFakeTimers();
     const searchLocations = vi.fn<SearchLocations>();

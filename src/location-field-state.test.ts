@@ -73,22 +73,49 @@ describe("location field intent transitions", () => {
     expect(editLocationDraft("  ")).toEqual({ label: "", intent: "clear" });
   });
 
-  it("shows the warning only for non-empty text-only drafts", () => {
+  it("shows the warning for new raw text and preserved saved text", () => {
     expect(
-      shouldShowTextOnlyWarning({ label: "Toronto", intent: "text-only" }),
+      shouldShowTextOnlyWarning(
+        { label: "Toronto", intent: "text-only" },
+        { kind: "none", label: "" },
+      ),
     ).toBe(true);
     expect(
-      shouldShowTextOnlyWarning({ label: "Toronto", intent: "preserve" }),
+      shouldShowTextOnlyWarning(
+        { label: "West entrance", intent: "preserve" },
+        { kind: "text", label: "West entrance" },
+      ),
+    ).toBe(true);
+  });
+
+  it("does not warn for untouched confirmed, legacy, or empty locations", () => {
+    expect(
+      shouldShowTextOnlyWarning(
+        {
+          label: candidate.label,
+          intent: "selected",
+          candidate,
+        },
+        confirmed,
+      ),
     ).toBe(false);
     expect(
-      shouldShowTextOnlyWarning({
-        label: candidate.label,
-        intent: "selected",
-        candidate,
-      }),
+      shouldShowTextOnlyWarning(
+        { label: confirmed.label, intent: "preserve" },
+        confirmed,
+      ),
     ).toBe(false);
-    expect(shouldShowTextOnlyWarning({ label: "", intent: "clear" })).toBe(
-      false,
-    );
+    expect(
+      shouldShowTextOnlyWarning(
+        { label: legacy.label, intent: "preserve" },
+        legacy,
+      ),
+    ).toBe(false);
+    expect(
+      shouldShowTextOnlyWarning(
+        { label: "", intent: "clear" },
+        { kind: "none", label: "" },
+      ),
+    ).toBe(false);
   });
 });
