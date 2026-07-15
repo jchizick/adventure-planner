@@ -2725,8 +2725,6 @@ main {
   color: var(--text-secondary);
 }
 .mobile-space-title {
-  display: grid;
-  gap: 2px;
   flex: 1;
   min-width: 0;
 }
@@ -2737,14 +2735,6 @@ main {
 }
 .app-logo-mobile {
   width: clamp(96px, 32vw, 112px);
-}
-.mobile-space-title strong {
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 14px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .mobile-account-actions {
   display: flex;
@@ -2843,15 +2833,10 @@ main {
   }
   .brand {
     display: block;
+    margin-bottom: 20px;
   }
   .app-logo-desktop {
     width: min(100%, 176px);
-  }
-  .couple {
-    font:
-      700 25px/1.2 Inter,
-      sans-serif;
-    margin: 8px 0 30px;
   }
   .desktop-nav nav {
     display: grid;

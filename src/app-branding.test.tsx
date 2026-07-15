@@ -32,7 +32,7 @@ function renderAppShell() {
 }
 
 describe("application branding", () => {
-  it("renders the public SVG logo and shared-space name in the desktop sidebar", () => {
+  it("renders the public SVG logo without the shared-space name in the desktop sidebar", () => {
     const { container } = renderAppShell();
     const sidebar = container.querySelector(".desktop-nav");
     expect(sidebar).toBeTruthy();
@@ -40,7 +40,7 @@ describe("application branding", () => {
     const logo = within(sidebar as HTMLElement).getByAltText("Our Adventures");
     expect(logo.getAttribute("src")).toBe("/our-adventures-logo.svg");
     expect(logo.classList.contains("app-logo-desktop")).toBe(true);
-    expect(within(sidebar as HTMLElement).getByText("Jordan & Liz")).toBeTruthy();
+    expect(within(sidebar as HTMLElement).queryByText("Jordan & Liz")).toBeNull();
   });
 
   it("renders the public SVG logo in the mobile header beside its actions", () => {
@@ -52,6 +52,7 @@ describe("application branding", () => {
     const logo = header.getByAltText("Our Adventures");
     expect(logo.getAttribute("src")).toBe("/our-adventures-logo.svg");
     expect(logo.classList.contains("app-logo-mobile")).toBe(true);
+    expect(header.queryByText("Jordan & Liz")).toBeNull();
     expect(header.getByRole("link", { name: "People and invitations" })).toBeTruthy();
     expect(header.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });

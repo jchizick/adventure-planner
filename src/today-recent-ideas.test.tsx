@@ -85,7 +85,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Today recent Ideas", () => {
-  it("marks the redundant space-name eyebrow as desktop-only", () => {
+  it("retains the shared-space eyebrow for the desktop Today header", () => {
     renderToday();
 
     expect(screen.getByText("Shared plans").classList).toContain(

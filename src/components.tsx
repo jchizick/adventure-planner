@@ -29,7 +29,7 @@ export const nav = [
 export function AppShell() {
   const loc = useLocation();
   const { signOut } = useAuth();
-  const { activeSpace, profile } = useWorkspace();
+  const { profile } = useWorkspace();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const adventureDetail = loc.pathname.startsWith("/adventures/");
@@ -57,7 +57,6 @@ export function AppShell() {
             alt="Our Adventures"
           />
         </div>
-        <p className="couple">{activeSpace?.name ?? "Our Adventures"}</p>
         <nav>
           {nav.map(([to, label, Icon]) => (
             <NavLink key={to} to={to}>
@@ -93,7 +92,6 @@ export function AppShell() {
             src="/our-adventures-logo.svg"
             alt="Our Adventures"
           />
-          <strong>{activeSpace?.name ?? "Our Adventures"}</strong>
         </div>
         <div className="mobile-account-actions">
           <NavLink to="/settings/members" aria-label="People and invitations">
