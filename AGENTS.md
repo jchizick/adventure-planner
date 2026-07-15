@@ -29,7 +29,7 @@ These instructions apply to the entire repository. Treat statements under **Repo
 - `supabase/functions/`: authenticated Edge Functions for invitations, geocoding, and weather.
 - `artwork-source/`: source artwork; `public/category-art/` contains optimized runtime assets.
 - `README.md`: local setup, Auth URL configuration, database linking, and invitation delivery notes.
-- There is no committed hosting configuration, Supabase `config.toml`, CI workflow, generated database types, or automated test/E2E configuration.
+- Root `vercel.json` provides the Vercel SPA fallback for client-side routes. There is no Supabase `config.toml`, CI workflow, generated database types, or automated E2E configuration.
 
 ## Development commands
 
@@ -65,7 +65,7 @@ npx supabase functions deploy <function-name>
 - Browser configuration is limited to `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; copy `.env.example` to an ignored `.env.local`.
 - Every `VITE_` value is public browser-bundle data. Never place secret/service-role keys, database passwords, Resend credentials, or access tokens there.
 - Edge Functions use Supabase-provided server environment variables. Invitation delivery additionally needs `RESEND_API_KEY` and `INVITATION_FROM_EMAIL`; see `README.md`.
-- No application hosting provider is committed. Do not assume Vercel, Netlify, or a deployment URL. Report deployment steps separately.
+- Vercel routing is committed only through the root SPA fallback. Project identity, domains, environment variables, and deployment steps remain external configuration and must be confirmed separately.
 
 ## Working method
 
