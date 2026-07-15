@@ -35,7 +35,7 @@ Create a typed registry in `src/idea-covers.ts` with stable IDs independent of p
 - Trips & Getaways: `trip-countryside`, `trip-lake-cabin`, `trip-old-town`
 - General: `general-default`
 
-Map category presets to the existing `/category-art/covers/<category>/01.webp` through `03.webp` files and the general preset to `/category-art/generic/adventure-cover.webp`. Keep category glyph exports unchanged.
+The curated category libraries now contain `/category-art/covers/<category>/01.webp` through `09.webp`; the general preset remains `/category-art/generic/adventure-cover.webp`. Stable Idea IDs are independent from filenames, and the expanded inventory is documented in `public/category-art/README.md`. Keep category glyph exports unchanged.
 
 Resolution order:
 
@@ -75,7 +75,7 @@ Adventures already have a responsive `CoverPhotoSheet` with current preview, Aut
 Interaction and persistence:
 
 - Add one “Change cover” action inside the existing edit-only Idea sheet. New unsaved Ideas continue receiving their Phase 1 automatic assignment on creation.
-- Opening shows the effective current preview, Automatic, and the current category's three presets. If an explicit preset belongs to another category, include that current preset as an additional selected choice rather than silently replacing it.
+- Opening shows the effective current preview, Automatic, and the current category's nine presets in a bounded desktop grid or compact mobile carousel. If an explicit preset belongs to another category, include that current preset as an additional selected choice rather than silently replacing it.
 - Saving a preset persists its stable ID immediately and updates the local edit draft. Automatic explicitly persists `NULL`, returning the Idea to deterministic category/keyword/ID resolution across reloads.
 - Cancel and Escape close only the picker and do not call persistence. Shared `Sheet` behavior provides dialog semantics, initial focus, Escape isolation, and focus restoration.
 - Category edits preserve an explicit preset. The picker offers the new category's presets while retaining the cross-category current selection until the user chooses Automatic or a replacement.
@@ -107,4 +107,4 @@ npm run build
 git diff --check
 ```
 
-Browser automation is intentionally excluded. Manual review should cover desktop and narrow-mobile cropping, focal points, density, overflow, and missing-image resilience. Food & Drink and Outdoors are production-ready photography; Music & Events, Culture, At Home, Trips & Getaways, and the general fallback remain replace-in-place starter artwork requiring visual approval.
+Browser automation is intentionally excluded. Manual review should cover desktop and narrow-mobile cropping, focal points, density, overflow, and missing-image resilience. Food & Drink and Outdoors are production-ready photography; Music & Events, Culture, At Home, Trips & Getaways, and the general fallback remain replace-in-place artwork requiring visual approval. Legacy null Ideas continue resolving against the original three-ID pool, while creation may resolve against all nine and persists the result. Adventure automatic assignment likewise remains on filename slots 01–03; explicit 04–09 choices use the existing image-path representation.

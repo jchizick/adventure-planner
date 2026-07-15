@@ -40,7 +40,7 @@ describe("IdeaCoverThumbnail", () => {
     const { container } = render(<IdeaCoverThumbnail idea={idea} size={58} />);
     const image = container.querySelector<HTMLImageElement>("img")!;
     expect(image.getAttribute("src")).toBe(
-      "/category-art/covers/food-drink/01.webp",
+      "/category-art/covers/food-drink/02.webp",
     );
 
     fireEvent.error(image);

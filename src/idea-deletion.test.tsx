@@ -251,11 +251,11 @@ describe("IdeaSheet cover editing", () => {
     fireEvent.change(screen.getByLabelText("Category"), {
       target: { value: "outdoors" },
     });
-    expect(screen.getByText("Coffee and pastry")).toBeTruthy();
+    expect(screen.getByText("Quiet cafe")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Change idea cover" }));
 
     expect(
-      screen.getByRole("button", { name: "Use Coffee and pastry cover" })
+      screen.getByRole("button", { name: "Use Quiet cafe cover" })
         .getAttribute("aria-pressed"),
     ).toBe("true");
     expect(screen.getByRole("button", { name: "Use Forest trail cover" })).toBeTruthy();

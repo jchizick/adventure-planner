@@ -3,7 +3,7 @@ import { isLegacyDateNightCategory, normalizeCategory } from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
 import {
   isIdeaCoverPresetId,
-  resolveIdeaCoverPreset,
+  resolveNewIdeaCoverPreset,
 } from "../idea-covers";
 import type { Idea, IdeaStatus } from "../types";
 
@@ -153,7 +153,7 @@ export async function createIdea(
   draft: IdeaDraft,
 ): Promise<Idea> {
   const id = crypto.randomUUID();
-  const coverPresetId = resolveIdeaCoverPreset({
+  const coverPresetId = resolveNewIdeaCoverPreset({
     id,
     category: draft.category,
     title: draft.title,

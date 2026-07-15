@@ -19,8 +19,8 @@ export const IDEA_COVER_PRESETS = [
   {
     id: "food-dinner",
     category: "food-drink",
-    label: "Candlelit dinner",
-    path: CATEGORY_COVERS["food-drink"][0],
+    label: "Romantic dinner",
+    path: CATEGORY_COVERS["food-drink"][1],
     keywords: [
       "restaurant",
       "dinner",
@@ -34,36 +34,36 @@ export const IDEA_COVER_PRESETS = [
   {
     id: "food-cafe",
     category: "food-drink",
-    label: "Coffee and pastry",
-    path: CATEGORY_COVERS["food-drink"][1],
+    label: "Quiet cafe",
+    path: CATEGORY_COVERS["food-drink"][2],
     keywords: ["coffee", "cafe", "bakery", "pastry"],
   },
   {
     id: "food-garden",
     category: "food-drink",
-    label: "Garden table",
-    path: CATEGORY_COVERS["food-drink"][2],
+    label: "Garden dinner",
+    path: CATEGORY_COVERS["food-drink"][8],
     keywords: ["picnic", "patio", "garden", "market"],
   },
   {
     id: "music-jazz-stage",
     category: "music-events",
-    label: "Jazz stage",
-    path: CATEGORY_COVERS["music-events"][0],
+    label: "Jazz club",
+    path: CATEGORY_COVERS["music-events"][8],
     keywords: ["jazz", "blues", "live music"],
   },
   {
     id: "music-outdoor-stage",
     category: "music-events",
     label: "Outdoor concert",
-    path: CATEGORY_COVERS["music-events"][1],
+    path: CATEGORY_COVERS["music-events"][0],
     keywords: ["concert", "festival", "gig", "band"],
   },
   {
     id: "music-theatre",
     category: "music-events",
     label: "Theatre stage",
-    path: CATEGORY_COVERS["music-events"][2],
+    path: CATEGORY_COVERS["music-events"][7],
     keywords: ["theatre", "theater", "musical", "opera", "orchestra", "stage"],
   },
   {
@@ -173,6 +173,258 @@ export const IDEA_COVER_PRESETS = [
     keywords: ["city", "town", "village", "travel", "weekend"],
   },
   {
+    id: "food-sunny-brunch",
+    category: "food-drink",
+    label: "Sunny brunch",
+    path: CATEGORY_COVERS["food-drink"][0],
+    keywords: ["brunch", "breakfast"],
+  },
+  {
+    id: "food-waterfront-market",
+    category: "food-drink",
+    label: "Waterfront food market",
+    path: CATEGORY_COVERS["food-drink"][3],
+    keywords: ["food market", "waterfront market"],
+  },
+  {
+    id: "food-sushi-bar",
+    category: "food-drink",
+    label: "Sushi bar",
+    path: CATEGORY_COVERS["food-drink"][4],
+    keywords: ["sushi", "omakase"],
+  },
+  {
+    id: "food-vineyard-picnic",
+    category: "food-drink",
+    label: "Vineyard picnic",
+    path: CATEGORY_COVERS["food-drink"][5],
+    keywords: ["vineyard", "winery", "wine tasting"],
+  },
+  {
+    id: "food-candlelit-dinner",
+    category: "food-drink",
+    label: "Candlelit dinner",
+    path: CATEGORY_COVERS["food-drink"][6],
+    keywords: ["candlelit", "date dinner"],
+  },
+  {
+    id: "food-window-cafe",
+    category: "food-drink",
+    label: "Window cafe",
+    path: CATEGORY_COVERS["food-drink"][7],
+    keywords: ["quiet cafe", "window cafe"],
+  },
+  {
+    id: "music-dance-night",
+    category: "music-events",
+    label: "Dance night",
+    path: CATEGORY_COVERS["music-events"][1],
+    keywords: ["dance", "dancing", "club", "disco"],
+  },
+  {
+    id: "music-acoustic-cafe",
+    category: "music-events",
+    label: "Acoustic cafe",
+    path: CATEGORY_COVERS["music-events"][2],
+    keywords: ["acoustic", "singer songwriter"],
+  },
+  {
+    id: "music-classical-hall",
+    category: "music-events",
+    label: "Classical concert hall",
+    path: CATEGORY_COVERS["music-events"][3],
+    keywords: ["classical", "symphony", "chamber music"],
+  },
+  {
+    id: "music-day-festival",
+    category: "music-events",
+    label: "Day festival",
+    path: CATEGORY_COVERS["music-events"][4],
+    keywords: ["day festival", "music festival"],
+  },
+  {
+    id: "music-neon-concert",
+    category: "music-events",
+    label: "Neon concert",
+    path: CATEGORY_COVERS["music-events"][5],
+    keywords: ["arena", "neon concert"],
+  },
+  {
+    id: "music-community-concert",
+    category: "music-events",
+    label: "Community concert",
+    path: CATEGORY_COVERS["music-events"][6],
+    keywords: ["community concert", "park concert"],
+  },
+  {
+    id: "outdoors-lakeside-campsite",
+    category: "outdoors",
+    label: "Lakeside campsite",
+    path: CATEGORY_COVERS.outdoors[3],
+    keywords: ["campsite", "campfire", "tent"],
+  },
+  {
+    id: "outdoors-meadow-picnic",
+    category: "outdoors",
+    label: "Mountain meadow picnic",
+    path: CATEGORY_COVERS.outdoors[4],
+    keywords: ["meadow picnic", "mountain picnic"],
+  },
+  {
+    id: "outdoors-mountain-trail",
+    category: "outdoors",
+    label: "Mountain trail",
+    path: CATEGORY_COVERS.outdoors[5],
+    keywords: ["mountain trail", "mountain hike"],
+  },
+  {
+    id: "outdoors-waterfall-boardwalk",
+    category: "outdoors",
+    label: "Waterfall boardwalk",
+    path: CATEGORY_COVERS.outdoors[6],
+    keywords: ["waterfall", "boardwalk"],
+  },
+  {
+    id: "outdoors-coastal-hike",
+    category: "outdoors",
+    label: "Coastal hike",
+    path: CATEGORY_COVERS.outdoors[7],
+    keywords: ["coastal hike", "clifftop"],
+  },
+  {
+    id: "outdoors-canoe-sunrise",
+    category: "outdoors",
+    label: "Canoe sunrise",
+    path: CATEGORY_COVERS.outdoors[8],
+    keywords: ["canoe sunrise", "sunrise paddle"],
+  },
+  {
+    id: "culture-historic-library",
+    category: "culture",
+    label: "Historic library",
+    path: CATEGORY_COVERS.culture[3],
+    keywords: ["library", "reading room", "books"],
+  },
+  {
+    id: "culture-classical-courtyard",
+    category: "culture",
+    label: "Classical courtyard",
+    path: CATEGORY_COVERS.culture[4],
+    keywords: ["courtyard", "classical architecture"],
+  },
+  {
+    id: "culture-pottery-studio",
+    category: "culture",
+    label: "Pottery studio",
+    path: CATEGORY_COVERS.culture[5],
+    keywords: ["pottery", "ceramics", "clay"],
+  },
+  {
+    id: "culture-coastal-sculpture-garden",
+    category: "culture",
+    label: "Coastal sculpture garden",
+    path: CATEGORY_COVERS.culture[6],
+    keywords: ["coastal sculpture", "waterfront sculpture"],
+  },
+  {
+    id: "culture-modern-gallery",
+    category: "culture",
+    label: "Modern gallery",
+    path: CATEGORY_COVERS.culture[7],
+    keywords: ["modern gallery", "contemporary art"],
+  },
+  {
+    id: "culture-arts-district",
+    category: "culture",
+    label: "Arts district",
+    path: CATEGORY_COVERS.culture[8],
+    keywords: ["arts district", "gallery district"],
+  },
+  {
+    id: "home-yoga-meditation",
+    category: "at-home",
+    label: "Yoga and meditation",
+    path: CATEGORY_COVERS["at-home"][3],
+    keywords: ["yoga", "meditation", "mindfulness"],
+  },
+  {
+    id: "home-movie-night",
+    category: "at-home",
+    label: "Movie night",
+    path: CATEGORY_COVERS["at-home"][4],
+    keywords: ["movie night", "film night"],
+  },
+  {
+    id: "home-board-games",
+    category: "at-home",
+    label: "Board game night",
+    path: CATEGORY_COVERS["at-home"][5],
+    keywords: ["board game", "cards night"],
+  },
+  {
+    id: "home-reading-nook",
+    category: "at-home",
+    label: "Reading nook",
+    path: CATEGORY_COVERS["at-home"][6],
+    keywords: ["reading nook", "book night"],
+  },
+  {
+    id: "home-baking",
+    category: "at-home",
+    label: "Baking at home",
+    path: CATEGORY_COVERS["at-home"][7],
+    keywords: ["baking", "cookies", "cake"],
+  },
+  {
+    id: "home-creative-studio",
+    category: "at-home",
+    label: "Creative studio",
+    path: CATEGORY_COVERS["at-home"][8],
+    keywords: ["creative studio", "painting", "watercolor"],
+  },
+  {
+    id: "trip-coastal-road-trip",
+    category: "trips-getaways",
+    label: "Coastal road trip",
+    path: CATEGORY_COVERS["trips-getaways"][3],
+    keywords: ["coastal drive", "coastal road trip", "mini cooper"],
+  },
+  {
+    id: "trip-mediterranean-harbour",
+    category: "trips-getaways",
+    label: "Mediterranean harbour",
+    path: CATEGORY_COVERS["trips-getaways"][4],
+    keywords: ["mediterranean", "harbour", "harbor"],
+  },
+  {
+    id: "trip-old-town-sunset",
+    category: "trips-getaways",
+    label: "Old-town sunset",
+    path: CATEGORY_COVERS["trips-getaways"][5],
+    keywords: ["old town sunset", "sunset town"],
+  },
+  {
+    id: "trip-mountain-lodge",
+    category: "trips-getaways",
+    label: "Mountain lodge",
+    path: CATEGORY_COVERS["trips-getaways"][6],
+    keywords: ["mountain lodge", "mountain retreat"],
+  },
+  {
+    id: "trip-lakeside-cabin",
+    category: "trips-getaways",
+    label: "Lakeside cabin",
+    path: CATEGORY_COVERS["trips-getaways"][7],
+    keywords: ["lakeside cabin", "lakeside cottage"],
+  },
+  {
+    id: "trip-scenic-train",
+    category: "trips-getaways",
+    label: "Scenic train",
+    path: CATEGORY_COVERS["trips-getaways"][8],
+    keywords: ["scenic train", "rail journey", "train trip"],
+  },
+  {
     id: "general-default",
     category: "general",
     label: "Garden estate",
@@ -202,6 +454,24 @@ export const IDEA_COVER_PRESETS_BY_CATEGORY: Record<
   culture: presetsFor("culture"),
   "at-home": presetsFor("at-home"),
   "trips-getaways": presetsFor("trips-getaways"),
+};
+
+const LEGACY_PRESET_IDS_BY_CATEGORY: Record<Category, readonly IdeaCoverPresetId[]> = {
+  "food-drink": ["food-dinner", "food-cafe", "food-garden"],
+  "music-events": ["music-jazz-stage", "music-outdoor-stage", "music-theatre"],
+  outdoors: ["outdoors-forest-trail", "outdoors-canoe-lake", "outdoors-coast"],
+  culture: ["culture-estate", "culture-sculpture", "culture-gallery"],
+  "at-home": ["home-cozy-night", "home-journal", "home-cooking"],
+  "trips-getaways": ["trip-countryside", "trip-lake-cabin", "trip-old-town"],
+};
+
+const LEGACY_PRESETS_BY_CATEGORY: Record<Category, readonly IdeaCoverPreset[]> = {
+  "food-drink": LEGACY_PRESET_IDS_BY_CATEGORY["food-drink"].map(getIdeaCoverPreset),
+  "music-events": LEGACY_PRESET_IDS_BY_CATEGORY["music-events"].map(getIdeaCoverPreset),
+  outdoors: LEGACY_PRESET_IDS_BY_CATEGORY.outdoors.map(getIdeaCoverPreset),
+  culture: LEGACY_PRESET_IDS_BY_CATEGORY.culture.map(getIdeaCoverPreset),
+  "at-home": LEGACY_PRESET_IDS_BY_CATEGORY["at-home"].map(getIdeaCoverPreset),
+  "trips-getaways": LEGACY_PRESET_IDS_BY_CATEGORY["trips-getaways"].map(getIdeaCoverPreset),
 };
 
 export function isIdeaCoverPresetId(
@@ -247,8 +517,9 @@ export type IdeaCoverAssignment = {
   coverPresetId?: string | null;
 };
 
-export function resolveIdeaCoverPreset(
+function resolveAutomaticIdeaCoverPreset(
   idea: IdeaCoverAssignment,
+  expanded: boolean,
 ): IdeaCoverPreset {
   if (isIdeaCoverPresetId(idea.coverPresetId)) {
     return getIdeaCoverPreset(idea.coverPresetId);
@@ -259,14 +530,20 @@ export function resolveIdeaCoverPreset(
   if (!category) {
     return (
       keywordPreset(
-        IDEA_COVER_PRESETS.filter((preset) => preset.category !== "general"),
+        (expanded ? IDEA_COVER_PRESETS : Object.values(LEGACY_PRESETS_BY_CATEGORY).flat())
+          .filter((preset) => preset.category !== "general"),
         searchable,
       ) ?? getIdeaCoverPreset("general-default")
     );
   }
 
-  const presets = IDEA_COVER_PRESETS_BY_CATEGORY[category];
-  const matched = keywordPreset(presets, searchable);
+  const presets = expanded
+    ? IDEA_COVER_PRESETS_BY_CATEGORY[category]
+    : LEGACY_PRESETS_BY_CATEGORY[category];
+  const keywordPresets = expanded
+    ? [...presets.slice(3), ...presets.slice(0, 3)]
+    : presets;
+  const matched = keywordPreset(keywordPresets, searchable);
   if (matched) return matched;
   if (idea.isDateNight && category === "food-drink") {
     return getIdeaCoverPreset("food-dinner");
@@ -277,4 +554,14 @@ export function resolveIdeaCoverPreset(
 
   const stableKey = idea.id.trim() || searchable.trim() || category;
   return presets[stableVisualHash(stableKey) % presets.length];
+}
+
+// Existing rows with no persisted preset keep the original three-item pool.
+export function resolveIdeaCoverPreset(idea: IdeaCoverAssignment) {
+  return resolveAutomaticIdeaCoverPreset(idea, false);
+}
+
+// Creation persists the result, so new Ideas can safely use the expanded pool.
+export function resolveNewIdeaCoverPreset(idea: IdeaCoverAssignment) {
+  return resolveAutomaticIdeaCoverPreset(idea, true);
 }

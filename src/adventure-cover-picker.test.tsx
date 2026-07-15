@@ -23,12 +23,68 @@ describe("Adventure CoverPhotoSheet", () => {
     );
 
     expect(screen.getByRole("button", { name: /Automatic/ })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /Use category cover/ })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
     expect(screen.getByLabelText("Custom image URL")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Use category cover 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Canoe on the lake cover" }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ coverVariant: 2 }));
+  });
+
+  it("persists an expanded category choice through the existing image path field", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CoverPhotoSheet
+        adventure={{ id: "adventure-id", category: "outdoors" }}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Waterfall boardwalk cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({
+      coverImage: "/category-art/covers/outdoors/07.webp",
+    }));
+  });
+
+  it("restores a persisted expanded category choice", () => {
+    render(
+      <CoverPhotoSheet
+        adventure={{
+          id: "adventure-id",
+          category: "outdoors",
+          coverImage: "/category-art/covers/outdoors/07.webp",
+        }}
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Use Waterfall boardwalk cover" })
+      .getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByRole("button", { name: "Save cover" }) as HTMLButtonElement).disabled)
+      .toBe(true);
+  });
+
+  it("retains an existing custom image URL independently from presets", () => {
+    render(
+      <CoverPhotoSheet
+        adventure={{
+          id: "adventure-id",
+          category: "outdoors",
+          coverImage: "https://images.example/adventure.webp",
+        }}
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect((screen.getByLabelText("Custom image URL") as HTMLInputElement).value)
+      .toBe("https://images.example/adventure.webp");
+    expect((screen.getByAltText("Adventure cover preview") as HTMLImageElement).src)
+      .toContain("https://images.example/adventure.webp");
+    expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
   });
 
   it("retains clearing an explicit preset back to Automatic", async () => {

@@ -1526,6 +1526,9 @@ main {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
   min-width: 0;
+  max-height: 286px;
+  padding: 2px 4px 4px 2px;
+  overflow-y: auto;
 }
 .cover-variant-option {
   position: relative;
@@ -1595,7 +1598,9 @@ main {
     grid-auto-flow: column;
     grid-auto-columns: minmax(132px, 58%);
     padding: 2px 3px 7px;
+    max-height: none;
     overflow-x: auto;
+    overflow-y: hidden;
     overscroll-behavior-inline: contain;
     scroll-snap-type: inline mandatory;
   }

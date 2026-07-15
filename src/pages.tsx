@@ -42,6 +42,7 @@ import {
   countAdvancedIdeaFilters,
   emptyAdvancedIdeaFilters,
   filterIdeas,
+  normalizeCategoryOrNull,
   primaryCategories,
   type AdvancedIdeaFilters,
   type IdeaCategoryFilter,
@@ -51,6 +52,7 @@ import {
 import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
 import {
+  CATEGORY_COVER_ASSETS,
   GENERIC_ADVENTURE_COVER,
   getCategoryCoverByVariant,
   getStableCategoryCover,
@@ -1788,59 +1790,66 @@ export function CoverPhotoSheet({
   onClose: () => void;
   onSave: (selection: AdventureCoverSelection) => Promise<void>;
 }) {
-  type CoverMode = "automatic" | "custom" | AdventureCoverVariant;
+  type CoverMode = "automatic" | "custom" | string;
   type CustomStatus = "idle" | "loading" | "valid" | "invalid";
   const currentCover = adventure.coverImage?.trim() || "";
   const currentVariant = adventure.coverVariant;
+  const category = normalizeCategoryOrNull(adventure.category);
+  const categoryCoverAssets = category ? CATEGORY_COVER_ASSETS[category] : [];
+  const currentVariantCover = getCategoryCoverByVariant(
+    adventure.category,
+    currentVariant,
+  );
+  const currentLibraryCover = currentCover &&
+      categoryCoverAssets.some(({ path }) => path === currentCover)
+    ? currentCover
+    : currentVariantCover;
   const initialMode: CoverMode = currentCover
-    ? "custom"
-    : currentVariant ?? "automatic";
+    ? currentLibraryCover ?? "custom"
+    : currentLibraryCover ?? "automatic";
   const automaticCover = getStableCategoryCover(
     adventure.category,
     adventure.id,
   );
   const [mode, setMode] = useState<CoverMode>(initialMode);
-  const [coverImage, setCoverImage] = useState(currentCover);
+  const [coverImage, setCoverImage] = useState(
+    initialMode === "custom" ? currentCover : "",
+  );
   const [customStatus, setCustomStatus] = useState<CustomStatus>(
-    currentCover
+    initialMode === "custom"
       ? /^https?:\/\//i.test(currentCover) || currentCover.startsWith("/")
         ? "loading"
         : "invalid"
       : "idle",
   );
   const [lastValidPreview, setLastValidPreview] = useState(
-    getCategoryCoverByVariant(adventure.category, currentVariant) ??
-      automaticCover,
+    currentLibraryCover ?? automaticCover,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmed = coverImage.trim();
   const isSupported =
     !trimmed || /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/");
-  const selectedVariant = typeof mode === "number" ? mode : undefined;
-  const selectedVariantCover = getCategoryCoverByVariant(
-    adventure.category,
-    selectedVariant,
-  );
+  const selectedLibraryCover = mode !== "automatic" && mode !== "custom"
+    ? mode
+    : undefined;
   const preview = mode === "custom" && isSupported && trimmed &&
       customStatus !== "invalid"
     ? trimmed
-    : selectedVariantCover ?? (mode === "custom"
+    : selectedLibraryCover ?? (mode === "custom"
       ? lastValidPreview
       : automaticCover);
   const isDirty = mode !== initialMode ||
-    (mode === "custom" && trimmed !== currentCover);
+    (mode === "custom" && trimmed !==
+      (initialMode === "custom" ? currentCover : ""));
   const canSave = isDirty && !saving &&
     (mode !== "custom" || isSupported && customStatus === "valid");
-  const variantOptions = ([1, 2, 3] as const).map<
-    CoverPickerOption<AdventureCoverVariant>
-  >((variant) => ({
-    value: variant,
-    label: `Cover ${variant}`,
-    source:
-      getCategoryCoverByVariant(adventure.category, variant) ??
-      GENERIC_ADVENTURE_COVER,
-    ariaLabel: `Use category cover ${variant}`,
+  const variantOptions = categoryCoverAssets.map<CoverPickerOption<string>>(
+    (asset) => ({
+    value: asset.path,
+    label: asset.label,
+    source: asset.path,
+    ariaLabel: `Use ${asset.label} cover`,
   }));
 
   useEffect(() => {
@@ -1877,9 +1886,16 @@ export function CoverPhotoSheet({
       await onSave(
         mode === "custom"
           ? { coverImage: trimmed }
-          : typeof mode === "number"
-          ? { coverVariant: mode }
-          : {},
+          : mode === "automatic"
+          ? {}
+          : (() => {
+            const originalIndex = categoryCoverAssets
+              .slice(0, 3)
+              .findIndex(({ path }) => path === mode);
+            return originalIndex >= 0
+              ? { coverVariant: (originalIndex + 1) as AdventureCoverVariant }
+              : { coverImage: mode };
+          })(),
       );
     } catch (nextError) {
       setError(
@@ -1903,7 +1919,7 @@ export function CoverPhotoSheet({
       automaticSelected={mode === "automatic"}
       options={variantOptions}
       choicesAriaLabel="Category cover choices"
-      selectedValue={selectedVariant}
+      selectedValue={selectedLibraryCover}
       saving={saving}
       canSave={canSave}
       error={error}
@@ -1913,8 +1929,8 @@ export function CoverPhotoSheet({
         setCustomStatus("idle");
         setError(null);
       }}
-      onSelectOption={(variant) => {
-        setMode(variant);
+      onSelectOption={(path) => {
+        setMode(path);
         setCoverImage("");
         setCustomStatus("idle");
         setError(null);

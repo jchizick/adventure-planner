@@ -7,6 +7,7 @@ import { primaryCategories } from "./idea-model";
 import {
   IDEA_COVER_PRESETS,
   IDEA_COVER_PRESETS_BY_CATEGORY,
+  resolveNewIdeaCoverPreset,
   resolveIdeaCoverPreset,
 } from "./idea-covers";
 
@@ -18,8 +19,17 @@ describe("Idea cover preset registry", () => {
     for (const category of primaryCategories) {
       expect(
         IDEA_COVER_PRESETS_BY_CATEGORY[category.id].length,
-      ).toBeGreaterThan(0);
+      ).toBe(9);
     }
+    expect(IDEA_COVER_PRESETS.every((preset) => preset.label.trim())).toBe(true);
+    expect(ids).toEqual(expect.arrayContaining([
+      "food-dinner",
+      "music-jazz-stage",
+      "outdoors-forest-trail",
+      "culture-estate",
+      "home-cozy-night",
+      "trip-countryside",
+    ]));
   });
 
   it("references existing local assets only", () => {
@@ -45,6 +55,51 @@ describe("Idea cover assignment", () => {
     expect(resolveIdeaCoverPreset(input)).toEqual(
       resolveIdeaCoverPreset(input),
     );
+  });
+
+  it("keeps legacy null automatic assignment on the original three presets", () => {
+    const legacyIds = new Set([
+      "outdoors-forest-trail",
+      "outdoors-canoe-lake",
+      "outdoors-coast",
+    ]);
+    for (const id of ["legacy-a", "legacy-b", "legacy-c", "legacy-d"]) {
+      expect(legacyIds.has(resolveIdeaCoverPreset({
+        id,
+        category: "outdoors",
+        title: "A day outside",
+      }).id)).toBe(true);
+    }
+  });
+
+  it("lets new Ideas use the expanded deterministic pool", () => {
+    const resolved = Array.from({ length: 30 }, (_, index) =>
+      resolveNewIdeaCoverPreset({
+        id: `new-idea-${index}`,
+        category: "outdoors",
+        title: "A day outside",
+      }).id);
+    expect(resolved.some((id) => id === "outdoors-waterfall-boardwalk")).toBe(true);
+    expect(resolveNewIdeaCoverPreset({
+      id: "new-stable",
+      category: "outdoors",
+      title: "A day outside",
+    })).toEqual(resolveNewIdeaCoverPreset({
+      id: "new-stable",
+      category: "outdoors",
+      title: "A day outside",
+    }));
+  });
+
+  it.each([
+    ["food-drink", "Sushi omakase", "food-sushi-bar"],
+    ["music-events", "Classical chamber music", "music-classical-hall"],
+    ["outdoors", "Waterfall boardwalk", "outdoors-waterfall-boardwalk"],
+    ["culture", "Try a pottery workshop", "culture-pottery-studio"],
+    ["at-home", "Yoga and meditation", "home-yoga-meditation"],
+    ["trips-getaways", "Take a scenic train", "trip-scenic-train"],
+  ] as const)("maps new %s keywords to %s for creation", (category, title, expected) => {
+    expect(resolveNewIdeaCoverPreset({ id: "new", category, title }).id).toBe(expected);
   });
 
   it.each([

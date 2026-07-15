@@ -34,26 +34,27 @@ function renderPicker(
 }
 
 describe("IdeaCoverPicker", () => {
-  it("shows Automatic and the three presets for the current category", () => {
+  it("shows Automatic and the expanded presets for the current category", () => {
     renderPicker();
     const choices = within(screen.getByLabelText("Idea cover choices"));
 
     expect(screen.getByRole("button", { name: /Automatic/ }).getAttribute("aria-pressed"))
       .toBe("true");
-    expect(choices.getAllByRole("button")).toHaveLength(3);
-    expect(choices.getByRole("button", { name: "Use Candlelit dinner cover" })).toBeTruthy();
+    expect(choices.getAllByRole("button")).toHaveLength(9);
+    expect(choices.getByRole("button", { name: "Use Romantic dinner cover" })).toBeTruthy();
+    expect(choices.getByRole("button", { name: "Use Sushi bar cover" })).toBeTruthy();
     expect(screen.queryByLabelText(/Custom image URL/i)).toBeNull();
   });
 
   it("persists a selected preset and restores the selection on reload", async () => {
     const { onSave } = renderPicker();
-    fireEvent.click(screen.getByRole("button", { name: "Use Coffee and pastry cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Quiet cafe cover" }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith("food-cafe"));
     cleanup();
     renderPicker({ ...idea, coverPresetId: "food-cafe" });
-    expect(screen.getByRole("button", { name: "Use Coffee and pastry cover" }).getAttribute("aria-pressed"))
+    expect(screen.getByRole("button", { name: "Use Quiet cafe cover" }).getAttribute("aria-pressed"))
       .toBe("true");
   });
 
@@ -77,8 +78,8 @@ describe("IdeaCoverPicker", () => {
     renderPicker({ ...idea, category: "outdoors", coverPresetId: "food-cafe" });
     const choices = within(screen.getByLabelText("Idea cover choices"));
 
-    expect(choices.getAllByRole("button")).toHaveLength(4);
-    expect(choices.getByRole("button", { name: "Use Coffee and pastry cover" }).getAttribute("aria-pressed"))
+    expect(choices.getAllByRole("button")).toHaveLength(10);
+    expect(choices.getByRole("button", { name: "Use Quiet cafe cover" }).getAttribute("aria-pressed"))
       .toBe("true");
     expect(choices.getByRole("button", { name: "Use Forest trail cover" })).toBeTruthy();
   });
