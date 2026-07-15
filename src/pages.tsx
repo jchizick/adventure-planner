@@ -213,7 +213,11 @@ export function Today() {
   if (loading)
     return (
       <div className="page today">
-        <PageHeader eyebrow={spaceName} title="Your next adventure" />
+        <PageHeader
+          eyebrow={spaceName}
+          eyebrowClassName="today-space-eyebrow"
+          title="Your next adventure"
+        />
         <div className="ideas-state" role="status">
           <span className="access-spinner" aria-hidden="true" />
           <h3>Gathering your Adventures…</h3>
@@ -223,7 +227,11 @@ export function Today() {
   if (error)
     return (
       <div className="page today">
-        <PageHeader eyebrow={spaceName} title="Your next adventure" />
+        <PageHeader
+          eyebrow={spaceName}
+          eyebrowClassName="today-space-eyebrow"
+          title="Your next adventure"
+        />
         <div className="ideas-state ideas-error" role="alert">
           <h3>Adventures could not be loaded</h3>
           <p>{error}</p>
@@ -238,6 +246,7 @@ export function Today() {
       <div className="page today">
         <PageHeader
           eyebrow={spaceName}
+          eyebrowClassName="today-space-eyebrow"
           title="Your next adventure"
           action={
             <button
@@ -264,6 +273,7 @@ export function Today() {
     <div className="page today">
       <PageHeader
         eyebrow={spaceName}
+        eyebrowClassName="today-space-eyebrow"
         title="Your next adventure"
         action={
           <button

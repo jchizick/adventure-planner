@@ -1,6 +1,5 @@
 import {
   CalendarDays,
-  Heart,
   Image,
   Lightbulb,
   LogOut,
@@ -52,8 +51,11 @@ export function AppShell() {
     <div className="app-frame">
       <aside className="desktop-nav">
         <div className="brand">
-          <span>Our Adventures</span>
-          <Heart size={18} fill="currentColor" />
+          <img
+            className="app-logo app-logo-desktop"
+            src="/our-adventures-logo.svg"
+            alt="Our Adventures"
+          />
         </div>
         <p className="couple">{activeSpace?.name ?? "Our Adventures"}</p>
         <nav>
@@ -86,7 +88,11 @@ export function AppShell() {
       </aside>
       <div className="mobile-account">
         <div className="mobile-space-title">
-          <span>Our Adventures <Heart aria-hidden="true" fill="currentColor" /></span>
+          <img
+            className="app-logo app-logo-mobile"
+            src="/our-adventures-logo.svg"
+            alt="Our Adventures"
+          />
           <strong>{activeSpace?.name ?? "Our Adventures"}</strong>
         </div>
         <div className="mobile-account-actions">
@@ -122,16 +128,22 @@ export function AppShell() {
 export function PageHeader({
   title,
   eyebrow,
+  eyebrowClassName,
   action,
 }: {
   title: string;
   eyebrow?: string;
+  eyebrowClassName?: string;
   action?: ReactNode;
 }) {
   return (
     <header className="page-header">
       <div>
-        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+        {eyebrow && (
+          <p className={`eyebrow${eyebrowClassName ? ` ${eyebrowClassName}` : ""}`}>
+            {eyebrow}
+          </p>
+        )}
         <h1>{title}</h1>
       </div>
       {action}

@@ -85,6 +85,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Today recent Ideas", () => {
+  it("marks the redundant space-name eyebrow as desktop-only", () => {
+    renderToday();
+
+    expect(screen.getByText("Shared plans").classList).toContain(
+      "today-space-eyebrow",
+    );
+  });
+
   it("renders live title, creator convention, and category artwork", () => {
     renderToday();
 

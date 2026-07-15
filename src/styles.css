@@ -2727,17 +2727,17 @@ main {
 .mobile-space-title {
   display: grid;
   gap: 2px;
+  flex: 1;
   min-width: 0;
 }
-.mobile-space-title span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 650;
+.app-logo {
+  display: block;
+  height: auto;
+  max-width: 100%;
 }
-.mobile-space-title span svg { width: 11px; height: 11px; color: var(--coral); }
+.app-logo-mobile {
+  width: clamp(96px, 32vw, 112px);
+}
 .mobile-space-title strong {
   overflow: hidden;
   color: var(--ink);
@@ -2748,8 +2748,12 @@ main {
 }
 .mobile-account-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   margin-left: auto;
+}
+.today-space-eyebrow {
+  display: none;
 }
 .mobile-account button {
   width: 44px;
@@ -2838,13 +2842,10 @@ main {
     display: none;
   }
   .brand {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-weight: 700;
+    display: block;
   }
-  .brand svg {
-    color: var(--coral);
+  .app-logo-desktop {
+    width: min(100%, 176px);
   }
   .couple {
     font:
@@ -2956,6 +2957,9 @@ main {
     grid-auto-flow: row;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: hidden;
+  }
+  .today-space-eyebrow {
+    display: block;
   }
 }
 @media (max-width: 370px) {
