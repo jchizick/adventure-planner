@@ -93,17 +93,31 @@ describe("Today recent Ideas", () => {
     );
   });
 
-  it("renders live title, creator convention, and the shared preset cover", () => {
+  it("renders the horizontal thumbnail, title, creator, and shared status treatment", () => {
     renderToday();
 
     const title = screen.getByText("Live gallery visit");
     const card = title.closest("button");
     expect(card).toBeTruthy();
+    expect(card?.classList.contains("idea-rail-card")).toBe(true);
     expect(card?.textContent).toContain("Added by Jordan");
+    expect(card?.querySelector(".status.tentative")?.textContent).toBe("Tentative");
     expect(card?.querySelector("img")?.getAttribute("src")).toBe(
       "/category-art/covers/culture/03.webp",
     );
-    expect(card?.querySelector(".idea-cover-thumbnail")).toBeTruthy();
+    expect(card?.firstElementChild?.classList.contains("idea-cover-thumbnail"))
+      .toBe(true);
+  });
+
+  it("reuses the existing Planned treatment for promoted Ideas", () => {
+    mocks.useIdeas.mockReturnValue({
+      ideas: [idea({ linkedAdventureId: "adventure-id" })],
+      loading: false,
+      error: null,
+    });
+    renderToday();
+
+    expect(screen.getByText("Planned").classList.contains("planned-chip")).toBe(true);
   });
 
   it("shows a restrained three-card loading treatment without hiding Today", () => {
@@ -144,6 +158,25 @@ describe("Today recent Ideas", () => {
 
     fireEvent.click(screen.getByText("Live gallery visit").closest("button")!);
     expect(screen.getByText("Ideas destination")).toBeTruthy();
+  });
+
+  it("keeps the latest-three count and clamps long titles inside the card copy", () => {
+    mocks.useIdeas.mockReturnValue({
+      ideas: [
+        idea({ id: "fourth", title: "Fourth", createdAt: "2026-07-12T12:00:00Z" }),
+        idea({ id: "second", title: "Second", createdAt: "2026-07-14T12:00:00Z" }),
+        idea({ id: "first", title: "A very long newly created Idea title that should stay inside its compact card", createdAt: "2026-07-15T12:00:00Z" }),
+        idea({ id: "third", title: "Third", createdAt: "2026-07-13T12:00:00Z" }),
+      ],
+      loading: false,
+      error: null,
+    });
+    const { container } = renderToday();
+
+    expect(container.querySelectorAll(".idea-rail-card")).toHaveLength(3);
+    expect(screen.queryByText("Fourth")).toBeNull();
+    expect(screen.getByText(/A very long newly created/).classList)
+      .toContain("idea-rail-title");
   });
 
   it("contains no Today-page references to the retired mock Ideas", () => {

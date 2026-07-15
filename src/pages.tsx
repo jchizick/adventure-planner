@@ -364,14 +364,29 @@ export function Today() {
       ) : recentIdeas.length ? (
         <div className="idea-rail">
           {recentIdeas.map((idea) => (
-            <button key={idea.id} onClick={() => nav("/ideas")}>
-              <span>{idea.title}</span>
-              <small>Added by {idea.addedBy}</small>
+            <button
+              className="idea-rail-card"
+              key={idea.id}
+              onClick={() => nav("/ideas")}
+            >
               <IdeaCoverThumbnail
                 idea={idea}
                 size={58}
                 className="mini-art"
               />
+              <span className="idea-rail-copy">
+                <span className="idea-rail-title">{idea.title}</span>
+                <span className="idea-rail-meta">
+                  {idea.linkedAdventureId ? (
+                    <span className="planned-chip">
+                      <Check aria-hidden="true" /> Planned
+                    </span>
+                  ) : (
+                    <StatusChip status={idea.status} />
+                  )}
+                  <small>Added by {idea.addedBy}</small>
+                </span>
+              </span>
             </button>
           ))}
         </div>
@@ -877,14 +892,19 @@ export function IdeaSheet({
             </select>
           </label>
         </div>
-        <label className="date-night-field">
+        <label
+          className={`date-night-field ${d.isDateNight ? "selected" : ""}`}
+        >
+          <Heart aria-hidden="true" />
+          <span>
+            <strong>Date Night</strong>
+            <small>Mark this as a date idea</small>
+          </span>
           <input
             type="checkbox"
             checked={d.isDateNight}
             onChange={(e) => setDraft({ ...d, isDateNight: e.target.checked })}
           />
-          <Heart aria-hidden="true" />
-          Date Night
         </label>
         {idea.id && (
           <div className="idea-cover-field">

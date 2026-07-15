@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { IdeaSheet } from "./pages";
 import type { Idea } from "./types";
@@ -297,5 +298,87 @@ describe("IdeaSheet cover editing", () => {
     expect(screen.getByRole("dialog", { name: "Edit idea" })).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("IdeaSheet Date Night control", () => {
+  it("renders one coherent native-checkbox row and loads an existing value", () => {
+    render(
+      <IdeaSheet
+        idea={{ ...idea, isDateNight: true }}
+        canDelete
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onPlan={vi.fn()}
+        onView={vi.fn()}
+      />,
+    );
+
+    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+      name: /Date Night/,
+    });
+    const row = checkbox.closest("label");
+    expect(row?.classList.contains("date-night-field")).toBe(true);
+    expect(row?.classList.contains("selected")).toBe(true);
+    expect(screen.getByText("Mark this as a date idea")).toBeTruthy();
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("toggles from the whole row and with the keyboard", async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+      name: /Date Night/,
+    });
+    const row = checkbox.closest("label");
+    if (!row) throw new Error("Expected the Date Night label row.");
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Title")));
+    fireEvent.click(row);
+    expect(checkbox.checked).toBe(true);
+    checkbox.focus();
+    await user.keyboard("[Space]");
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("saves the selected value while closing without Save does not persist", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const { unmount } = render(
+      <IdeaSheet
+        idea={idea}
+        canDelete
+        onClose={onClose}
+        onSave={onSave}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onPlan={vi.fn()}
+        onView={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText("Date Night").closest("label")!);
+    fireEvent.click(screen.getByRole("button", { name: "Save idea" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ ...idea, isDateNight: true }),
+    );
+
+    unmount();
+    const cancelSave = vi.fn().mockResolvedValue(undefined);
+    const cancelClose = vi.fn();
+    render(
+      <IdeaSheet
+        idea={idea}
+        canDelete
+        onClose={cancelClose}
+        onSave={cancelSave}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onPlan={vi.fn()}
+        onView={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText("Date Night").closest("label")!);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(cancelClose).toHaveBeenCalledTimes(1);
+    expect(cancelSave).not.toHaveBeenCalled();
   });
 });
