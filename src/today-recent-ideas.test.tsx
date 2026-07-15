@@ -93,7 +93,7 @@ describe("Today recent Ideas", () => {
     );
   });
 
-  it("renders live title, creator convention, and category artwork", () => {
+  it("renders live title, creator convention, and the shared preset cover", () => {
     renderToday();
 
     const title = screen.getByText("Live gallery visit");
@@ -101,8 +101,9 @@ describe("Today recent Ideas", () => {
     expect(card).toBeTruthy();
     expect(card?.textContent).toContain("Added by Jordan");
     expect(card?.querySelector("img")?.getAttribute("src")).toBe(
-      "/category-art/ideas/culture.webp",
+      "/category-art/covers/culture/03.webp",
     );
+    expect(card?.querySelector(".idea-cover-thumbnail")).toBeTruthy();
   });
 
   it("shows a restrained three-card loading treatment without hiding Today", () => {

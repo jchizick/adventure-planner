@@ -75,6 +75,7 @@ export interface Idea {
   updatedAt?: string;
   optionalLink?: string;
   optionalImage?: string;
+  coverPresetId?: string;
   optionalLocation?: string;
   linkedAdventureId?: string;
 }

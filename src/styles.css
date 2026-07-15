@@ -350,14 +350,20 @@ main {
   margin-top: 4px;
 }
 .mini-art {
-  width: 58px;
-  height: 58px;
   margin: 13px auto 0;
+  border-radius: 13px;
 }
-.mini-art img {
+.idea-cover-thumbnail {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #f0e8db;
+}
+.idea-cover-thumbnail img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .quick-add {
   position: fixed;
@@ -664,22 +670,7 @@ main {
   cursor: pointer;
 }
 .idea-thumb {
-  position: relative;
-  height: 64px;
   border-radius: 13px;
-  display: grid;
-  place-items: center;
-  background: #f0e8db;
-  overflow: hidden;
-}
-.idea-thumb img {
-  display: block;
-  position: absolute;
-  inset: 5px;
-  width: calc(100% - 10px);
-  height: calc(100% - 10px);
-  box-sizing: border-box;
-  object-fit: contain;
 }
 .idea-body h3 {
   font-size: 14px;

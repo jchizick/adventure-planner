@@ -52,13 +52,12 @@ import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
 import {
   GENERIC_ADVENTURE_COVER,
-  GENERIC_IDEA_ART,
-  getCategoryIllustration,
   getCategoryCoverByVariant,
   getStableCategoryCover,
   resolveAdventureCover,
   resolveMemoryCover,
 } from "./category-visuals";
+import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
 import { useWorkspace } from "./workspace";
 import {
   addLocalDays,
@@ -365,16 +364,11 @@ export function Today() {
             <button key={idea.id} onClick={() => nav("/ideas")}>
               <span>{idea.title}</span>
               <small>Added by {idea.addedBy}</small>
-              <div className="mini-art">
-                <SafeImage
-                  src={getCategoryIllustration(idea.category)}
-                  fallbackSrc={GENERIC_IDEA_ART}
-                  alt=""
-                  loading="lazy"
-                  width={256}
-                  height={256}
-                />
-              </div>
+              <IdeaCoverThumbnail
+                idea={idea}
+                size={58}
+                className="mini-art"
+              />
             </button>
           ))}
         </div>
@@ -712,16 +706,11 @@ export function Ideas() {
                 }
               }}
             >
-              <div className={`idea-thumb ${i.category}`}>
-                <SafeImage
-                  src={getCategoryIllustration(i.category)}
-                  fallbackSrc={GENERIC_IDEA_ART}
-                  alt=""
-                  loading="lazy"
-                  width={256}
-                  height={256}
-                />
-              </div>
+              <IdeaCoverThumbnail
+                idea={i}
+                size={64}
+                className="idea-thumb"
+              />
               <div className="idea-body">
                 <h3>{i.title}</h3>
                 <p>{i.description}</p>

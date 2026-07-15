@@ -1,6 +1,10 @@
 import { supabase } from "../lib/supabase";
 import { isLegacyDateNightCategory, normalizeCategory } from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
+import {
+  isIdeaCoverPresetId,
+  resolveIdeaCoverPreset,
+} from "../idea-covers";
 import type { Idea, IdeaStatus } from "../types";
 
 type DatabaseIdeaStatus = "idea" | "tentative" | "confirmed";
@@ -15,6 +19,7 @@ type IdeaRow = {
   tags: string[];
   optional_link: string | null;
   image_url: string | null;
+  cover_preset_id: string | null;
   location: string | null;
   added_by: string;
   linked_adventure_id: string | null;
@@ -38,6 +43,7 @@ export type IdeaDraft = Pick<
   | "tags"
   | "optionalLink"
   | "optionalImage"
+  | "coverPresetId"
   | "optionalLocation"
   | "isDateNight"
 >;
@@ -52,6 +58,7 @@ const ideaColumns = `
   tags,
   optional_link,
   image_url,
+  cover_preset_id,
   location,
   added_by,
   linked_adventure_id,
@@ -100,6 +107,7 @@ function mapIdea(row: IdeaRow): Idea {
     updatedAt: row.updated_at,
     optionalLink: row.optional_link ?? undefined,
     optionalImage: row.image_url ?? undefined,
+    coverPresetId: row.cover_preset_id ?? undefined,
     optionalLocation: row.location ?? undefined,
     linkedAdventureId: row.linked_adventure_id ?? undefined,
   };
@@ -116,6 +124,9 @@ function writableFields(draft: IdeaDraft) {
     optional_link: draft.optionalLink?.trim() || null,
     image_url: draft.optionalImage?.trim() || null,
     location: draft.optionalLocation?.trim() || null,
+    ...(isIdeaCoverPresetId(draft.coverPresetId)
+      ? { cover_preset_id: draft.coverPresetId }
+      : {}),
   };
 }
 
@@ -140,12 +151,23 @@ export async function createIdea(
   userId: string,
   draft: IdeaDraft,
 ): Promise<Idea> {
+  const id = crypto.randomUUID();
+  const coverPresetId = resolveIdeaCoverPreset({
+    id,
+    category: draft.category,
+    title: draft.title,
+    description: draft.description,
+    isDateNight: draft.isDateNight,
+    coverPresetId: draft.coverPresetId,
+  }).id;
   const { data, error } = await supabase
     .from("ideas")
     .insert({
       ...writableFields(draft),
+      id,
       space_id: spaceId,
       added_by: userId,
+      cover_preset_id: coverPresetId,
     })
     .select(ideaColumns)
     .single();
