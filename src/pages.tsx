@@ -59,6 +59,7 @@ import {
 } from "./category-visuals";
 import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
 import { IdeaCoverPicker } from "./idea-cover-picker";
+import { getIdeaCoverPreset, isIdeaCoverPresetId } from "./idea-covers";
 import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
 import { useWorkspace } from "./workspace";
 import {
@@ -567,7 +568,6 @@ export function Ideas() {
     error,
     retry,
     saveIdea,
-    setIdeaStatus,
     deleteIdea,
   } = useIdeas();
   const { activeSpace, memberships } = useWorkspace();
@@ -737,7 +737,6 @@ export function Ideas() {
         idea={editing}
         onClose={() => setEditing(null)}
         onSave={saveIdea}
-        onStatus={setIdeaStatus}
         onDelete={deleteIdea}
         canDelete={canDeleteIdeas}
         onPlan={(idea) => {
@@ -770,7 +769,6 @@ export function IdeaSheet({
   idea,
   onClose,
   onSave,
-  onStatus,
   onDelete,
   canDelete,
   onPlan,
@@ -779,7 +777,6 @@ export function IdeaSheet({
   idea: Idea | null;
   onClose: () => void;
   onSave: (i: Idea) => Promise<void>;
-  onStatus: (id: string, s: IdeaStatus) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   canDelete: boolean;
   onPlan: (idea: Idea) => void;
@@ -795,6 +792,9 @@ export function IdeaSheet({
   if (idea && !draft) setDraft(idea);
   if (!idea) return null;
   const d = draft?.id === idea.id ? draft : idea;
+  const coverLabel = isIdeaCoverPresetId(d.coverPresetId)
+    ? getIdeaCoverPreset(d.coverPresetId).label
+    : "Automatic cover";
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -886,6 +886,26 @@ export function IdeaSheet({
           <Heart aria-hidden="true" />
           Date Night
         </label>
+        {idea.id && (
+          <div className="idea-cover-field">
+            <span className="idea-cover-field-label">Cover</span>
+            <button
+              type="button"
+              className="idea-cover-control"
+              aria-label="Change idea cover"
+              disabled={saving}
+              onClick={() => setChangingCover(true)}
+            >
+              <IdeaCoverThumbnail
+                idea={d}
+                size={52}
+                className="idea-cover-field-thumbnail"
+              />
+              <strong>{coverLabel}</strong>
+              <span className="idea-cover-change">Change</span>
+            </button>
+          </div>
+        )}
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}
@@ -896,44 +916,10 @@ export function IdeaSheet({
         </button>
         {idea.id && (
           <>
-            <button
-              type="button"
-              className="text-action"
-              disabled={saving}
-              onClick={() => setChangingCover(true)}
-            >
-              <ImagePlus aria-hidden="true" /> Change cover
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={saving}
-              onClick={async () => {
-                setSaving(true);
-                setSaveError(null);
-                try {
-                  await onStatus(
-                    idea.id,
-                    d.status === "Confirmed" ? "Idea" : "Confirmed",
-                  );
-                  onClose();
-                } catch (error) {
-                  setSaveError(
-                    error instanceof Error
-                      ? error.message
-                      : "We could not update this idea. Please try again.",
-                  );
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              Change status
-            </button>
             {idea.linkedAdventureId ? (
               <button
                 type="button"
-                className="text-action"
+                className="text-action idea-promotion-action"
                 onClick={() => onView(idea.linkedAdventureId!)}
               >
                 View adventure <ChevronRight />
@@ -941,7 +927,7 @@ export function IdeaSheet({
             ) : (
               <button
                 type="button"
-                className="text-action"
+                className="text-action idea-promotion-action"
                 onClick={() => onPlan(d)}
               >
                 Turn into an adventure <ChevronRight />

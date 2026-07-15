@@ -16,7 +16,7 @@ export function IdeaCoverThumbnail({
     | "isDateNight"
     | "coverPresetId"
   >;
-  size: 58 | 64;
+  size: 52 | 58 | 64;
   className?: string;
 }) {
   const preset = resolveIdeaCoverPreset(idea);

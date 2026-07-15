@@ -720,6 +720,58 @@ main {
   width: 17px;
   color: var(--coral);
 }
+.idea-cover-field {
+  display: grid;
+  gap: 6px;
+}
+.idea-cover-field-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.idea-cover-control {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-soft, #f8f5f1);
+  color: var(--text-primary);
+  text-align: left;
+}
+.idea-cover-control:hover { border-color: #cec3b9; }
+.idea-cover-control:focus-visible {
+  outline: 3px solid rgba(232, 97, 87, 0.22);
+  outline-offset: 2px;
+}
+.idea-cover-control:disabled { opacity: .5; }
+.idea-cover-field-thumbnail { border-radius: 10px; }
+.idea-cover-control > strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.idea-cover-change {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+}
+.idea-promotion-action {
+  width: max-content;
+  min-height: 40px;
+  justify-self: center;
+  padding: 0 6px;
+}
 .idea-delete-section {
   margin-top: 8px;
   padding-top: 18px;
@@ -735,9 +787,9 @@ main {
   border: 1px solid rgba(184, 73, 63, 0.24);
   border-radius: 13px;
   color: #a43e37;
-  background: #fff4f2;
+  background: transparent;
   font: inherit;
-  font-weight: 700;
+  font-weight: 650;
 }
 .idea-delete-action:hover,
 .idea-delete-action:focus-visible { background: #f9e9e6; }
