@@ -41,7 +41,7 @@ function toDraft(idea: Idea): IdeaDraft {
     tags: idea.tags,
     optionalLink: idea.optionalLink,
     optionalImage: idea.optionalImage,
-    coverPresetId: idea.coverPresetId,
+    coverPresetId: idea.coverPresetId ?? null,
     optionalLocation: idea.optionalLocation,
     isDateNight: idea.isDateNight,
   };

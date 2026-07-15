@@ -161,3 +161,65 @@ describe("IdeaSheet deletion", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 });
+
+describe("IdeaSheet cover editing", () => {
+  it("opens the shared picker and persists only the selected cover", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <IdeaSheet
+        idea={idea}
+        canDelete
+        onClose={vi.fn()}
+        onSave={onSave}
+        onStatus={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onPlan={vi.fn()}
+        onView={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Unsaved title edit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change cover" }));
+
+    expect(screen.getByRole("dialog", { name: "Change cover" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Use Canoe on the lake cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        ...idea,
+        coverPresetId: "outdoors-canoe-lake",
+      }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Change cover" })).toBeNull();
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe(
+      "Unsaved title edit",
+    );
+  });
+
+  it("keeps an explicit cover selected after an unsaved category change", () => {
+    render(
+      <IdeaSheet
+        idea={{ ...idea, category: "food-drink", coverPresetId: "food-cafe" }}
+        canDelete
+        onClose={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onStatus={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onPlan={vi.fn()}
+        onView={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: "outdoors" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change cover" }));
+
+    expect(
+      screen.getByRole("button", { name: "Use Coffee and pastry cover" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Use Forest trail cover" })).toBeTruthy();
+  });
+});

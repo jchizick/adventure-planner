@@ -43,10 +43,9 @@ export type IdeaDraft = Pick<
   | "tags"
   | "optionalLink"
   | "optionalImage"
-  | "coverPresetId"
   | "optionalLocation"
   | "isDateNight"
->;
+> & { coverPresetId?: string | null };
 
 const ideaColumns = `
   id,
@@ -124,9 +123,11 @@ function writableFields(draft: IdeaDraft) {
     optional_link: draft.optionalLink?.trim() || null,
     image_url: draft.optionalImage?.trim() || null,
     location: draft.optionalLocation?.trim() || null,
-    ...(isIdeaCoverPresetId(draft.coverPresetId)
-      ? { cover_preset_id: draft.coverPresetId }
-      : {}),
+    ...(draft.coverPresetId === null
+      ? { cover_preset_id: null }
+      : isIdeaCoverPresetId(draft.coverPresetId)
+        ? { cover_preset_id: draft.coverPresetId }
+        : {}),
   };
 }
 

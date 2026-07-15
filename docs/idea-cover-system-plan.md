@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Saved Ideas artwork system will use stable, curated photo presets while the eight existing category filter tiles retain their glyph artwork. Phase 1 adds the preset foundation and card thumbnails. Phase 2 adds a preset picker. Phase 3 adds uploaded and generated sources.
+The Saved Ideas artwork system uses stable, curated photo presets while the eight existing category filter tiles retain their glyph artwork. Phase 1 delivered the preset foundation and card thumbnails. Phase 2 adapts the existing Adventure cover picker for explicit Idea preset selection. Phase 3 remains deferred for uploaded and generated sources.
 
 Current architecture:
 
@@ -12,7 +12,7 @@ Current architecture:
 - Eighteen local editorial covers already exist under `public/category-art/covers`, and the generic Adventure cover is suitable as the safe general fallback.
 - Ideas remain protected by existing membership RLS. No policy change is required.
 
-## Phase 1 — Implement now
+## Phase 1 — Complete
 
 ### Data model
 
@@ -62,15 +62,28 @@ Date Night may bias Food toward dinner or At Home toward cozy-night but never be
 - Existing Ideas are not rewritten. Null records resolve a deterministic cover from category, keywords, and Idea ID.
 - Deploy the database migration before a future frontend deployment because repository selects will reference the new column.
 - Old clients ignore the additive column. New clients validate registry IDs and safely handle unknown values.
-- Do not push the Phase 1 migration, deploy, or commit as part of this implementation task.
+- The additive Phase 1 migration has already been committed and applied. Phase 2 requires no schema, RLS, storage, or provider changes.
 
-## Phase 2 — Plan only
+## Phase 2 — Implement now
 
-- Add “Change cover” inside the existing Idea edit sheet.
-- Use an accessible responsive radio grid, showing the current category first and allowing optional browsing of other categories.
-- Persist the selected preset through the existing save flow; Cancel changes nothing.
-- Preserve any persisted cover when category changes, including an automatically assigned preset. Users explicitly choose a replacement when desired.
-- Include visible selection, keyboard navigation, Escape handling, focus restoration, and tests for save, cancel, category changes, cross-category selection, and retired IDs.
+Adventures already have a responsive `CoverPhotoSheet` with current preview, Automatic, three category covers, custom URL validation, Save, and Cancel. Phase 2 extracts only its presentation into a shared cover-picker sheet and keeps two small consumer wrappers:
+
+- Shared presentation owns the sheet/form structure, preview, Automatic row, supplied preset grid, selected/check state, error placement, sticky Save/Cancel actions, and existing responsive styles.
+- The Adventure wrapper retains its current stable-category variants, custom URL state and validation, `AdventureCoverSelection` payload, copy, and persistence behavior unchanged.
+- The Idea wrapper supplies the current canonical category's preset registry entries and persists only `cover_preset_id` through the existing Idea save/update path. It has no custom URL section.
+
+Interaction and persistence:
+
+- Add one “Change cover” action inside the existing edit-only Idea sheet. New unsaved Ideas continue receiving their Phase 1 automatic assignment on creation.
+- Opening shows the effective current preview, Automatic, and the current category's three presets. If an explicit preset belongs to another category, include that current preset as an additional selected choice rather than silently replacing it.
+- Saving a preset persists its stable ID immediately and updates the local edit draft. Automatic explicitly persists `NULL`, returning the Idea to deterministic category/keyword/ID resolution across reloads.
+- Cancel and Escape close only the picker and do not call persistence. Shared `Sheet` behavior provides dialog semantics, initial focus, Escape isolation, and focus restoration.
+- Category edits preserve an explicit preset. The picker offers the new category's presets while retaining the cross-category current selection until the user chooses Automatic or a replacement.
+- Invalid or retired IDs render through the existing resolver. The picker treats Automatic as the repair choice, and saving it clears the invalid value.
+
+Custom image URL support is intentionally deferred for Ideas. Adventure custom URLs remain unchanged, and `ideas.image_url` is not repurposed. The shared component accepts consumer-specific content so a future source model can add Idea custom controls without changing its preset API.
+
+Tests cover shared presentation, Adventure regression and custom URL parity, Idea entry and persistence, Automatic clearing, Cancel and Escape, reload/re-render state, cross-category preservation, invalid-ID repair, and existing Ideas/Today/filter/promotion behavior.
 
 ## Phase 3 — Plan only
 

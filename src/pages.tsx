@@ -58,6 +58,8 @@ import {
   resolveMemoryCover,
 } from "./category-visuals";
 import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
+import { IdeaCoverPicker } from "./idea-cover-picker";
+import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
 import { useWorkspace } from "./workspace";
 import {
   addLocalDays,
@@ -789,6 +791,7 @@ export function IdeaSheet({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [changingCover, setChangingCover] = useState(false);
   if (idea && !draft) setDraft(idea);
   if (!idea) return null;
   const d = draft?.id === idea.id ? draft : idea;
@@ -895,6 +898,14 @@ export function IdeaSheet({
           <>
             <button
               type="button"
+              className="text-action"
+              disabled={saving}
+              onClick={() => setChangingCover(true)}
+            >
+              <ImagePlus aria-hidden="true" /> Change cover
+            </button>
+            <button
+              type="button"
               className="secondary"
               disabled={saving}
               onClick={async () => {
@@ -970,6 +981,16 @@ export function IdeaSheet({
         }}
         onConfirm={() => void confirmDelete()}
       />
+      {changingCover && (
+        <IdeaCoverPicker
+          idea={d}
+          onClose={() => setChangingCover(false)}
+          onSave={async (coverPresetId) => {
+            await onSave({ ...idea, coverPresetId });
+            setDraft({ ...d, coverPresetId });
+          }}
+        />
+      )}
     </Sheet>
   );
 }
@@ -1749,7 +1770,7 @@ function AdventureActionsMenu({
   );
 }
 
-function CoverPhotoSheet({
+export function CoverPhotoSheet({
   adventure,
   onClose,
   onSave,
@@ -1805,6 +1826,16 @@ function CoverPhotoSheet({
     (mode === "custom" && trimmed !== currentCover);
   const canSave = isDirty && !saving &&
     (mode !== "custom" || isSupported && customStatus === "valid");
+  const variantOptions = ([1, 2, 3] as const).map<
+    CoverPickerOption<AdventureCoverVariant>
+  >((variant) => ({
+    value: variant,
+    label: `Cover ${variant}`,
+    source:
+      getCategoryCoverByVariant(adventure.category, variant) ??
+      GENERIC_ADVENTURE_COVER,
+    ariaLabel: `Use category cover ${variant}`,
+  }));
 
   useEffect(() => {
     if (mode !== "custom" || !trimmed || !isSupported) return;
@@ -1855,115 +1886,61 @@ function CoverPhotoSheet({
     }
   };
   return (
-    <Sheet open title="Change cover photo" onClose={onClose}>
-      <form className="cover-photo-form" onSubmit={submit} noValidate>
-        <p className="cover-photo-section-title">Current preview</p>
-        <SafeImage
-          src={preview}
-          fallbackSrc={GENERIC_ADVENTURE_COVER}
-          alt="Adventure cover preview"
-          width={1600}
-          height={800}
+    <CoverPickerSheet
+      title="Change cover photo"
+      previewSource={preview}
+      previewAlt="Adventure cover preview"
+      fallbackSource={GENERIC_ADVENTURE_COVER}
+      sectionTitle="Category covers"
+      sectionDescription="Choose a cover for this adventure, or keep the automatic rotation."
+      automaticDescription="Uses a stable category cover for this adventure."
+      automaticSelected={mode === "automatic"}
+      options={variantOptions}
+      choicesAriaLabel="Category cover choices"
+      selectedValue={selectedVariant}
+      saving={saving}
+      canSave={canSave}
+      error={error}
+      onSelectAutomatic={() => {
+        setMode("automatic");
+        setCoverImage("");
+        setCustomStatus("idle");
+        setError(null);
+      }}
+      onSelectOption={(variant) => {
+        setMode(variant);
+        setCoverImage("");
+        setCustomStatus("idle");
+        setError(null);
+      }}
+      onClose={onClose}
+      onSubmit={(event) => void submit(event)}
+    >
+      <label className="cover-custom-url">
+        Custom image URL
+        <input
+          type="url"
+          value={coverImage}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            const nextTrimmed = nextValue.trim();
+            const nextSupported = /^https?:\/\//i.test(nextTrimmed) ||
+              nextTrimmed.startsWith("/");
+            setCoverImage(nextValue);
+            setMode(nextTrimmed ? "custom" : "automatic");
+            setCustomStatus(
+              nextTrimmed ? nextSupported ? "loading" : "invalid" : "idle",
+            );
+            setError(null);
+          }}
+          placeholder="https://example.com/adventure.jpg"
+          aria-invalid={mode === "custom" && customStatus === "invalid"}
         />
-        <section
-          className="cover-photo-options"
-          aria-labelledby="category-cover-heading"
-        >
-          <div>
-            <h3 id="category-cover-heading">Category covers</h3>
-            <small>
-              Choose a cover for this adventure, or keep the automatic rotation.
-            </small>
-          </div>
-          <button
-            type="button"
-            className="cover-auto-option"
-            aria-pressed={mode === "automatic"}
-            onClick={() => {
-              setMode("automatic");
-              setCoverImage("");
-              setCustomStatus("idle");
-              setError(null);
-            }}
-          >
-            <span>
-              <strong>Automatic</strong>
-              <small>Uses a stable category cover for this adventure.</small>
-            </span>
-            {mode === "automatic" && <Check aria-hidden="true" />}
-          </button>
-          <div className="cover-variant-row" aria-label="Category cover choices">
-            {([1, 2, 3] as const).map((variant) => {
-              const source = getCategoryCoverByVariant(
-                adventure.category,
-                variant,
-              ) ?? GENERIC_ADVENTURE_COVER;
-              const selected = mode === variant;
-              return (
-                <button
-                  type="button"
-                  className="cover-variant-option"
-                  aria-label={`Use category cover ${variant}`}
-                  aria-pressed={selected}
-                  key={variant}
-                  onClick={() => {
-                    setMode(variant);
-                    setCoverImage("");
-                    setCustomStatus("idle");
-                    setError(null);
-                  }}
-                >
-                  <SafeImage
-                    src={source}
-                    fallbackSrc={GENERIC_ADVENTURE_COVER}
-                    alt=""
-                    width={1600}
-                    height={800}
-                  />
-                  <span>Cover {variant}</span>
-                  {selected && (
-                    <Check className="cover-option-check" aria-hidden="true" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-        <label className="cover-custom-url">
-          Custom image URL
-          <input
-            type="url"
-            value={coverImage}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              const nextTrimmed = nextValue.trim();
-              const nextSupported = /^https?:\/\//i.test(nextTrimmed) ||
-                nextTrimmed.startsWith("/");
-              setCoverImage(nextValue);
-              setMode(nextTrimmed ? "custom" : "automatic");
-              setCustomStatus(
-                nextTrimmed ? nextSupported ? "loading" : "invalid" : "idle",
-              );
-              setError(null);
-            }}
-            placeholder="https://example.com/adventure.jpg"
-            aria-invalid={mode === "custom" && customStatus === "invalid"}
-          />
-        </label>
-        <small>
-          Paste an http(s) image URL. A valid custom image overrides category covers.
-        </small>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="sheet-actions">
-          <button className="secondary" type="button" onClick={onClose} disabled={saving}>
-            Cancel
-          </button>
-          <button className="primary" type="submit" disabled={!canSave}>
-            {saving ? "Saving…" : "Save cover"}
-          </button>
-        </div>
-      </form>
-    </Sheet>
+      </label>
+      <small>
+        Paste an http(s) image URL. A valid custom image overrides category covers.
+      </small>
+    </CoverPickerSheet>
   );
 }
 

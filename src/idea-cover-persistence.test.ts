@@ -138,4 +138,25 @@ describe("Idea cover persistence", () => {
     expect(payload).not.toHaveProperty("cover_preset_id");
     expect(updated.coverPresetId).toBeUndefined();
   });
+
+  it("clears a persisted preset when Automatic is explicitly selected", async () => {
+    const query = updateQuery(row(null));
+    await updateIdea("space-id", ideaId, draft({ coverPresetId: null }));
+
+    expect(query.update).toHaveBeenCalledWith(
+      expect.objectContaining({ cover_preset_id: null }),
+    );
+  });
+
+  it("does not overwrite a persisted preset with an unknown draft value", async () => {
+    const query = updateQuery(row("food-cafe"));
+    await updateIdea(
+      "space-id",
+      ideaId,
+      draft({ coverPresetId: "retired-preset" }),
+    );
+    const payload = query.update.mock.calls[0][0] as Record<string, unknown>;
+
+    expect(payload).not.toHaveProperty("cover_preset_id");
+  });
 });
