@@ -698,6 +698,29 @@ main {
   width: 17px;
   color: var(--coral);
 }
+.idea-delete-section {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
+}
+.idea-delete-action {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(184, 73, 63, 0.24);
+  border-radius: 13px;
+  color: #a43e37;
+  background: #fff4f2;
+  font: inherit;
+  font-weight: 700;
+}
+.idea-delete-action:hover,
+.idea-delete-action:focus-visible { background: #f9e9e6; }
+.idea-delete-action:disabled { opacity: .5; }
+.idea-delete-action svg { width: 17px; height: 17px; }
 .sheet-backdrop {
   position: fixed;
   z-index: 50;
@@ -2217,6 +2240,12 @@ main {
 .memory-confirm h2 { margin: 0 0 8px; }
 .memory-confirm > p { color: var(--text-secondary); }
 .memory-confirm > div { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.confirmation-backdrop { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: 18px; background: #2a201d9c; }
+.confirmation-dialog { width: min(100%, 390px); padding: 25px; border-radius: 20px; background: var(--surface); box-shadow: 0 24px 80px #0004; }
+.confirmation-dialog h2 { margin: 0 0 8px; font-size: 22px; line-height: 1.2; }
+.confirmation-dialog > p { margin: 0; color: var(--text-secondary); line-height: 1.55; }
+.confirmation-dialog > .form-error { margin-top: 13px; color: #a43e37; }
+.confirmation-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 .access-page {
   max-width: none;

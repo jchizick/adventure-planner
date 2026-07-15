@@ -11,6 +11,7 @@ import {
 import { useAuth } from "./auth";
 import {
   createIdea,
+  deleteIdea as deleteIdeaRecord,
   loadIdeas,
   updateIdea,
   updateIdeaStatus,
@@ -26,6 +27,7 @@ type IdeasState = {
   retry: () => Promise<void>;
   saveIdea: (idea: Idea) => Promise<void>;
   setIdeaStatus: (id: string, status: IdeaStatus) => Promise<void>;
+  deleteIdea: (id: string) => Promise<void>;
 };
 
 const IdeasContext = createContext<IdeasState | null>(null);
@@ -106,6 +108,12 @@ export function IdeasProvider({ children }: { children: ReactNode }) {
         setIdeas((current) =>
           current.map((item) => (item.id === saved.id ? saved : item)),
         );
+      },
+      deleteIdea: async (id) => {
+        if (!activeSpace)
+          throw new Error("Open your shared space and try again.");
+        await deleteIdeaRecord(activeSpace.id, id);
+        setIdeas((current) => current.filter((item) => item.id !== id));
       },
     }),
     [activeSpace, error, ideas, load, loading, user],

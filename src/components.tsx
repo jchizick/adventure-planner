@@ -12,11 +12,13 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import type { IdeaStatus } from "./types";
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ImgHTMLAttributes,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "./auth";
 import { useWorkspace } from "./workspace";
 export const nav = [
@@ -224,6 +226,123 @@ export function Sheet({
         {children}
       </section>
     </div>
+  );
+}
+
+export function ConfirmationDialog({
+  open,
+  title,
+  body,
+  confirmLabel,
+  pendingLabel,
+  pending = false,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  body: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  pending?: boolean;
+  error?: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const titleId = useId();
+  const bodyId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+  const pendingRef = useRef(pending);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+    pendingRef.current = pending;
+  }, [onCancel, pending]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const frame = requestAnimationFrame(() => cancelRef.current?.focus());
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!pendingRef.current) onCancelRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          "button:not(:disabled)",
+        ) ?? [],
+      );
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", handleKey, true);
+      previous?.focus();
+    };
+  }, [open]);
+
+  if (!open) return null;
+  return createPortal(
+    <div
+      className="confirmation-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending) onCancel();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="confirmation-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
+      >
+        <h2 id={titleId}>{title}</h2>
+        <p id={bodyId}>{body}</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="confirmation-actions">
+          <button
+            ref={cancelRef}
+            type="button"
+            className="button-secondary"
+            onClick={onCancel}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="danger-button"
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending ? pendingLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 export function QuickAdd({ onClick }: { onClick: () => void }) {

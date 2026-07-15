@@ -184,3 +184,18 @@ export async function updateIdeaStatus(
   if (error) throw repositoryError("update", error);
   return mapIdea(data as unknown as IdeaRow);
 }
+
+export async function deleteIdea(
+  spaceId: string,
+  ideaId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("ideas")
+    .delete()
+    .eq("space_id", spaceId)
+    .eq("id", ideaId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data)
+    throw repositoryError("delete", error ?? { message: "Idea not found" });
+}

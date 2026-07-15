@@ -71,7 +71,14 @@ import {
   sortCalendarEvents,
   toLocalDateKey,
 } from "./calendar";
-import { PageHeader, QuickAdd, SafeImage, Sheet, StatusChip } from "./components";
+import {
+  ConfirmationDialog,
+  PageHeader,
+  QuickAdd,
+  SafeImage,
+  Sheet,
+  StatusChip,
+} from "./components";
 import { WeatherIndicator } from "./weather";
 import { LocationSearchField } from "./location-search-field";
 import { initialLocationDraft } from "./location-field-state";
@@ -518,8 +525,16 @@ const blankIdea: Idea = {
 };
 export function Ideas() {
   const nav = useNavigate();
-  const { ideas, loading, error, retry, saveIdea, setIdeaStatus } = useIdeas();
-  const { activeSpace } = useWorkspace();
+  const {
+    ideas,
+    loading,
+    error,
+    retry,
+    saveIdea,
+    setIdeaStatus,
+    deleteIdea,
+  } = useIdeas();
+  const { activeSpace, memberships } = useWorkspace();
   const { promoteIdeaToAdventure } = useAdventureStore();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<IdeaCategoryFilter>("all");
@@ -527,6 +542,10 @@ export function Ideas() {
   const [members, setMembers] = useState<SpaceMember[]>([]);
   const [editing, setEditing] = useState<Idea | null>(null);
   const [planning, setPlanning] = useState<Idea | null>(null);
+  const canDeleteIdeas = Boolean(
+    activeSpace &&
+      memberships.some((membership) => membership.spaceId === activeSpace.id),
+  );
 
   useEffect(() => {
     if (!activeSpace) return;
@@ -688,6 +707,8 @@ export function Ideas() {
         onClose={() => setEditing(null)}
         onSave={saveIdea}
         onStatus={setIdeaStatus}
+        onDelete={deleteIdea}
+        canDelete={canDeleteIdeas}
         onPlan={(idea) => {
           setEditing(null);
           setPlanning(idea);
@@ -714,11 +735,13 @@ export function Ideas() {
     </div>
   );
 }
-function IdeaSheet({
+export function IdeaSheet({
   idea,
   onClose,
   onSave,
   onStatus,
+  onDelete,
+  canDelete,
   onPlan,
   onView,
 }: {
@@ -726,12 +749,17 @@ function IdeaSheet({
   onClose: () => void;
   onSave: (i: Idea) => Promise<void>;
   onStatus: (id: string, s: IdeaStatus) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  canDelete: boolean;
   onPlan: (idea: Idea) => void;
   onView: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Idea | null>(idea);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   if (idea && !draft) setDraft(idea);
   if (!idea) return null;
   const d = draft?.id === idea.id ? draft : idea;
@@ -751,6 +779,24 @@ function IdeaSheet({
       );
     } finally {
       setSaving(false);
+    }
+  };
+  const confirmDelete = async () => {
+    if (deleting || !idea.id) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(idea.id);
+      setConfirmingDelete(false);
+      onClose();
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : "We could not delete this idea. Please try again.",
+      );
+    } finally {
+      setDeleting(false);
     }
   };
   return (
@@ -861,9 +907,40 @@ function IdeaSheet({
                 Turn into an adventure <ChevronRight />
               </button>
             )}
+            {canDelete && (
+              <div className="idea-delete-section">
+                <button
+                  type="button"
+                  className="idea-delete-action"
+                  disabled={saving}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setConfirmingDelete(true);
+                  }}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Delete idea
+                </button>
+              </div>
+            )}
           </>
         )}
       </form>
+      <ConfirmationDialog
+        open={confirmingDelete}
+        title={`Delete “${idea.title}”?`}
+        body="This idea will be permanently deleted. This cannot be undone."
+        confirmLabel="Delete idea"
+        pendingLabel="Deleting…"
+        pending={deleting}
+        error={deleteError}
+        onCancel={() => {
+          if (deleting) return;
+          setConfirmingDelete(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
     </Sheet>
   );
 }
