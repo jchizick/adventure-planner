@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import adventuresSource from "./repositories/adventures.ts?raw";
+import contextSource from "./context.tsx?raw";
+import pagesSource from "./pages.tsx?raw";
+import weatherSource from "./weather.tsx?raw";
+import legacyGeocoderSource from "../supabase/functions/geocode-adventure-location/index.ts?raw";
 
 vi.mock("./lib/supabase", () => ({
   supabase: {},
-}));
-vi.mock("./repositories/geocoding", () => ({
-  geocodeAdventureLocation: vi.fn(),
 }));
 
 import {
@@ -344,17 +345,23 @@ describe("stop location persistence", () => {
   });
 });
 
-describe("save-time geocoding boundary", () => {
-  it("keeps the legacy geocoder only in the explicit weather-enablement path", () => {
-    expect(adventuresSource.match(/geocodeAdventureLocation\(/g)).toHaveLength(1);
-    const enableStart = adventuresSource.indexOf(
-      "export async function enableAdventureWeather",
-    );
-    const duplicateStart = adventuresSource.indexOf(
-      "export async function duplicateAdventure",
-    );
-    expect(adventuresSource.slice(enableStart, duplicateStart)).toContain(
-      "geocodeAdventureLocation(",
+describe("legacy geocoding boundary", () => {
+  it("removes the legacy geocoder from application source", () => {
+    const applicationSource = [
+      adventuresSource,
+      contextSource,
+      pagesSource,
+      weatherSource,
+    ].join("\n");
+    expect(applicationSource).not.toContain("geocodeAdventureLocation");
+    expect(applicationSource).not.toContain("enableAdventureWeather");
+    expect(applicationSource).not.toContain('"geocode-adventure-location"');
+  });
+
+  it("keeps the legacy Edge Function source for stale clients", () => {
+    expect(legacyGeocoderSource).toContain("Deno.serve");
+    expect(legacyGeocoderSource).toContain(
+      "https://geocoding-api.open-meteo.com/v1/search",
     );
   });
 });

@@ -1891,7 +1891,6 @@ export function AdventureDetail() {
     deleteAdventureLink,
     setAdventureCompleted,
     updateAdventure,
-    enableAdventureWeather,
     updateAdventureCover,
     duplicateAdventure,
     deleteAdventure,
@@ -2046,7 +2045,6 @@ export function AdventureDetail() {
             adventure={a}
             canEdit={canMutate}
             onEdit={() => setEditOpen(true)}
-            onEnable={() => enableAdventureWeather(a.id)}
           />
         </div>
         {a.locationWeatherWarning && (

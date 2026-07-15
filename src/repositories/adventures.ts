@@ -7,10 +7,6 @@ import {
   mapSavedLocation,
   type LocationWritePayload,
 } from "../location";
-import {
-  geocodeAdventureLocation,
-  type AdventureCoordinates,
-} from "./geocoding";
 import type {
   Adventure,
   AdventureCoverSelection,
@@ -134,15 +130,6 @@ function repositoryError(action: string, error: { message: string }) {
   if (import.meta.env.DEV)
     console.error(`Supabase Adventures ${action} failed`, error.message);
   return new Error(`We could not ${action} this adventure. Please try again.`);
-}
-
-function coordinatePayload(coordinates: AdventureCoordinates | null) {
-  return {
-    latitude: coordinates?.latitude ?? null,
-    longitude: coordinates?.longitude ?? null,
-    timezone: coordinates?.timezone ?? null,
-    geocoded_location: coordinates?.geocodedLocation ?? null,
-  };
 }
 
 export function adventureLocationPayload(
@@ -283,30 +270,6 @@ export async function updateAdventureCover(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("update the cover for", error);
-  return mapAdventure(data as unknown as AdventureRow);
-}
-
-export async function enableAdventureWeather(
-  spaceId: string,
-  adventureId: string,
-  userId: string,
-  adventure: Adventure,
-): Promise<Adventure> {
-  const location = adventure.location === "Location to be decided"
-    ? ""
-    : adventure.location.trim();
-  if (!location) throw new Error("Add a location before enabling weather.");
-  const coordinates = await geocodeAdventureLocation(spaceId, location);
-  if (!coordinates)
-    throw new Error("Weather could not be enabled for this location. Try again.");
-  const { data, error } = await supabase
-    .from("adventures")
-    .update({ ...coordinatePayload(coordinates), updated_by: userId })
-    .eq("space_id", spaceId)
-    .eq("id", adventureId)
-    .select(adventureColumns)
-    .single();
-  if (error) throw repositoryError("enable weather for", error);
   return mapAdventure(data as unknown as AdventureRow);
 }
 

@@ -13,7 +13,6 @@ import {
   createAdventure as createAdventureRow,
   deleteAdventure as deleteAdventureRow,
   duplicateAdventure as duplicateAdventureRow,
-  enableAdventureWeather as enableAdventureWeatherRow,
   loadAdventures,
   promoteIdea as promoteIdeaRow,
   updateAdventure as updateAdventureRow,
@@ -70,7 +69,6 @@ type Store = {
     plan: AdventurePlanInput,
   ) => Promise<Adventure>;
   updateAdventure: (id: string, plan: AdventurePlanInput) => Promise<void>;
-  enableAdventureWeather: (id: string) => Promise<void>;
   updateAdventureCover: (
     id: string,
     selection: AdventureCoverSelection,
@@ -274,20 +272,6 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
             user.id,
             plan,
             current.completed,
-            current,
-          ),
-        );
-      },
-      enableAdventureWeather: async (id) => {
-        if (!user || !activeSpace)
-          throw new Error("Open your shared space and try again.");
-        const current = adventures.find((adventure) => adventure.id === id);
-        if (!current) throw new Error("Adventure not found.");
-        replaceAdventure(
-          await enableAdventureWeatherRow(
-            activeSpace.id,
-            id,
-            user.id,
             current,
           ),
         );
