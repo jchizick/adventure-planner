@@ -21,6 +21,27 @@ function createFlagGlyph() {
   return glyph;
 }
 
+export function collapseAttributionControl(container: HTMLElement) {
+  // MapLibre 5.24 has no public initial-collapsed option. Its compact control
+  // uses these DOM classes plus the details `open` attribute for toggle state.
+  // Guard the complete expected structure so a future DOM change leaves the
+  // attribution safely expanded instead of hiding or disabling it.
+  const attribution = container.querySelector<HTMLElement>(
+    ".maplibregl-ctrl-attrib.maplibregl-compact",
+  );
+  const button = attribution?.querySelector<HTMLElement>(
+    ".maplibregl-ctrl-attrib-button",
+  );
+  const content = attribution?.querySelector<HTMLElement>(
+    ".maplibregl-ctrl-attrib-inner",
+  );
+  if (!attribution || !button || !content) return false;
+
+  attribution.classList.remove("maplibregl-compact-show");
+  attribution.removeAttribute("open");
+  return true;
+}
+
 export default function AdventureStopsMap({
   markers,
   cameraTarget,
@@ -77,6 +98,7 @@ export default function AdventureStopsMap({
           '<a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a> | <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a> | <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>',
       }),
     );
+    collapseAttributionControl(map.getContainer());
     let hasLoaded = false;
     const handleLoad = () => {
       hasLoaded = true;
