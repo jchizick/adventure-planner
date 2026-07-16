@@ -2184,26 +2184,32 @@ main {
 .memory-art-cover img { width: 100%; height: 100%; object-fit: cover; }
 .agenda-row.completed { opacity: .72; border-left-color: #729479; }
 .memory-intro {
+  position: relative;
   border-radius: 22px;
   padding: 24px;
   background: linear-gradient(135deg, #f4e7e4, #f0ede2 55%, #e4ecdf);
   text-align: center;
 }
 .memory-intro > svg {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   color: var(--gold);
 }
 .memory-intro h2 {
   font:
     600 25px/1.25 Inter,
     sans-serif;
-  margin: 10px auto;
-  max-width: 330px;
+  max-width: 350px;
+  margin: 34px auto 10px;
+  text-wrap: balance;
 }
 .memory-intro p {
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-secondary);
-  max-width: 430px;
+  max-width: 500px;
   margin: auto;
 }
 .memory-grid {
