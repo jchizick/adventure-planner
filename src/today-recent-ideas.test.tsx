@@ -129,13 +129,19 @@ describe("Today recent Ideas", () => {
     expect(screen.getAllByText("Dinner downtown")).toHaveLength(2);
   });
 
-  it("shows the calm empty state", () => {
+  it("renders the entire empty state as an accessible Ideas link", () => {
     mocks.useIdeas.mockReturnValue({ ideas: [], loading: false, error: null });
     renderToday();
 
-    expect(
-      screen.getByText("No ideas yet — add one for your next adventure."),
-    ).toBeTruthy();
+    const emptyState = screen.getByRole("link", {
+      name: "No ideas yet — add one for your next adventure.",
+    });
+    expect(emptyState.classList.contains("today-ideas-empty")).toBe(true);
+    expect(emptyState.getAttribute("href")).toBe("/ideas");
+    expect(emptyState.querySelector("a, button")).toBeNull();
+
+    fireEvent.click(emptyState);
+    expect(screen.getByText("Ideas destination")).toBeTruthy();
   });
 
   it("keeps the rest of Today available when the Ideas provider fails", () => {

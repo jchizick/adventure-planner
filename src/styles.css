@@ -350,6 +350,19 @@ main {
   font-size: 12px;
   text-align: center;
 }
+.today-ideas-empty {
+  cursor: pointer;
+  text-decoration: none;
+}
+.today-ideas-empty:hover {
+  border-color: #c8b8aa;
+  color: var(--text-primary);
+  background: rgba(255, 253, 249, 0.96);
+}
+.today-ideas-empty:focus-visible {
+  outline: 3px solid rgba(232, 97, 87, 0.38);
+  outline-offset: 2px;
+}
 .mini-art {
   margin: 0;
   border-radius: 12px;
@@ -3123,6 +3136,12 @@ main {
     transition:
       transform 0.18s ease,
       background 0.18s ease;
+  }
+  .today-ideas-empty {
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
   }
   button:active,
   .idea-card:active {

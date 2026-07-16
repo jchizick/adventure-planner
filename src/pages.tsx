@@ -393,9 +393,13 @@ export function Today() {
           ))}
         </div>
       ) : (
-        <p className="today-ideas-state">
+        <Link
+          className="today-ideas-state today-ideas-empty"
+          to="/ideas"
+          aria-label="No ideas yet — add one for your next adventure."
+        >
           No ideas yet — add one for your next adventure.
-        </p>
+        </Link>
       )}
       <QuickAdd onClick={() => setCreating(true)} />
       {createSheet}
