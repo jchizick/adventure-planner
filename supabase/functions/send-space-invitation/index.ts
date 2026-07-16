@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.110.2";
+import { sendBrevoEmail } from "./brevo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,27 +71,33 @@ Deno.serve(async (request) => {
   if (invitation.accepted_at || invitation.revoked_at || new Date(invitation.expires_at) <= new Date())
     return json({ error: "Invitation is no longer active." }, 409);
 
-  const resendKey = Deno.env.get("RESEND_API_KEY");
+  const brevoKey = Deno.env.get("BREVO_API_KEY");
   const fromEmail = Deno.env.get("INVITATION_FROM_EMAIL");
-  if (!resendKey || !fromEmail)
-    return json({ delivered: false, reason: "not_configured" });
 
   const space = Array.isArray(invitation.spaces) ? invitation.spaces[0] : invitation.spaces;
   const inviter = Array.isArray(invitation.profiles) ? invitation.profiles[0] : invitation.profiles;
   const inviteUrl = `${origin}/invite/${encodeURIComponent(body.rawToken)}`;
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: invitation.email,
-      subject: `You’re invited to ${space?.name ?? "Our Adventures"}`,
-      html: `<p>${escapeHtml(inviter?.display_name ?? "Your adventure partner")} invited you to plan together in <strong>${escapeHtml(space?.name ?? "Our Adventures")}</strong>.</p><p><a href="${escapeHtml(inviteUrl)}">Accept invitation</a></p><p>This invitation expires ${escapeHtml(new Date(invitation.expires_at).toUTCString())}.</p>`,
-    }),
+  const inviterName = inviter?.display_name ?? "Your adventure partner";
+  const spaceName = space?.name ?? "Our Adventures";
+  const expiry = new Date(invitation.expires_at).toUTCString();
+  const delivery = await sendBrevoEmail({
+    apiKey: brevoKey,
+    fromEmail,
+    to: invitation.email,
+    subject: `You’re invited to ${spaceName}`,
+    htmlContent: `<p>${escapeHtml(inviterName)} invited you to plan together in <strong>${escapeHtml(spaceName)}</strong>.</p><p><a href="${escapeHtml(inviteUrl)}">Accept invitation</a></p><p>This invitation expires ${escapeHtml(expiry)}.</p>`,
+    textContent: `${inviterName} invited you to plan together in ${spaceName}.\n\nAccept invitation: ${inviteUrl}\n\nThis invitation expires ${expiry}.`,
+    sensitiveValues: [body.rawToken, encodeURIComponent(body.rawToken), inviteUrl],
   });
-  if (!response.ok) return json({ error: "Email delivery failed." }, 502);
+
+  if (!delivery.delivered) {
+    if (delivery.reason === "not_configured")
+      return json({ delivered: false, reason: "not_configured" });
+    console.error("Brevo invitation email delivery failed", {
+      status: delivery.status,
+      detail: delivery.detail,
+    });
+    return json({ error: "Email delivery failed." }, 502);
+  }
   return json({ delivered: true });
 });

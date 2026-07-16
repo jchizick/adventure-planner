@@ -85,16 +85,19 @@ mutations use owner-checked RPCs; the browser has no direct mutation grants on
 ## Invitation email delivery
 
 The deployed `send-space-invitation` Edge Function validates the signed-in
-owner and invitation before sending. Production delivery uses Resend and needs
+owner and invitation before sending. Production delivery uses Brevo's
+transactional email API and needs
 these Edge Function secrets in the Supabase dashboard:
 
 ```text
-RESEND_API_KEY
+BREVO_API_KEY
 INVITATION_FROM_EMAIL
 ```
 
 `INVITATION_FROM_EMAIL` must use a sender/domain verified by the configured
-Resend account. Until both secrets are configured, invitation creation remains
+Brevo account. It may be an email address or a display name and address, such as
+`Our Adventures <invites@ouradventures.today>`. Until both secrets are
+configured, invitation creation remains
 functional and the development build presents a copyable invitation URL. A
 production build reports that delivery is not configured and never exposes the
 raw token.

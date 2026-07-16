@@ -63,8 +63,8 @@ npx supabase functions deploy <function-name>
 ## Environment and deployment
 
 - Browser configuration is limited to `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; copy `.env.example` to an ignored `.env.local`.
-- Every `VITE_` value is public browser-bundle data. Never place secret/service-role keys, database passwords, Resend credentials, or access tokens there.
-- Edge Functions use Supabase-provided server environment variables. Invitation delivery additionally needs `RESEND_API_KEY` and `INVITATION_FROM_EMAIL`; see `README.md`.
+- Every `VITE_` value is public browser-bundle data. Never place secret/service-role keys, database passwords, Brevo credentials, or access tokens there.
+- Edge Functions use Supabase-provided server environment variables. Invitation delivery additionally needs `BREVO_API_KEY` and `INVITATION_FROM_EMAIL`; see `README.md`.
 - Vercel routing is committed only through the root SPA fallback. Project identity, domains, environment variables, and deployment steps remain external configuration and must be confirmed separately.
 
 ## Working method
