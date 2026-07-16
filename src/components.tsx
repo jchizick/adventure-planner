@@ -250,6 +250,7 @@ export function ConfirmationDialog({
   error,
   onCancel,
   onConfirm,
+  cancelLabel = "Cancel",
 }: {
   open: boolean;
   title: string;
@@ -260,6 +261,7 @@ export function ConfirmationDialog({
   error?: string | null;
   onCancel: () => void;
   onConfirm: () => void;
+  cancelLabel?: string;
 }) {
   const titleId = useId();
   const bodyId = useId();
@@ -340,7 +342,7 @@ export function ConfirmationDialog({
             onClick={onCancel}
             disabled={pending}
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             type="button"

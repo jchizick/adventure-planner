@@ -137,6 +137,15 @@ If the public key is absent, invalid, over quota, or rejected by its origin
 rules, the Adventure detail page keeps the itinerary list usable and shows a
 recoverable map fallback instead of crashing.
 
+## Home-screen installation
+
+The web app manifest uses `/` as both its canonical `start_url` and scope, so a
+home-screen launch does not retain the magic-link or invitation URL from which
+the app happened to be installed. Supabase sessions remain browser-local and
+are restored normally on launch. A shortcut installed before this manifest was
+added may retain its original URL; remove and re-add that home-screen icon once
+after the updated frontend is deployed.
+
 ### Location persistence rollout compatibility
 
 Adventure, stop, and Idea-promotion forms now send explicit `LocationDraft`

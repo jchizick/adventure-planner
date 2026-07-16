@@ -933,6 +933,12 @@ main {
   font-weight: 500;
   line-height: 1.35;
 }
+.form-notice {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
 .location-search-field {
   min-width: 0;
   display: grid;

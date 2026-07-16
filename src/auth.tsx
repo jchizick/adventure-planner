@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { supabase } from "./lib/supabase";
+import { cleanAuthCallbackUrl } from "./auth-callback";
 
 type AuthState = {
   session: Session | null;
@@ -57,7 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       setSession(nextSession);
       setLoading(false);
-      if (nextSession) setCallbackError(null);
+      if (nextSession) {
+        setCallbackError(null);
+        const cleanUrl = cleanAuthCallbackUrl(window.location);
+        if (cleanUrl) window.history.replaceState(null, "", cleanUrl);
+      }
     });
 
     void supabase.auth.getSession().then(({ data, error }) => {
@@ -69,6 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSession(data.session);
       setLoading(false);
+      if (data.session) {
+        const cleanUrl = cleanAuthCallbackUrl(window.location);
+        if (cleanUrl) window.history.replaceState(null, "", cleanUrl);
+      }
     });
 
     return () => {

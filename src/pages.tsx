@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -64,6 +65,14 @@ import { IdeaCoverPicker } from "./idea-cover-picker";
 import { getIdeaCoverPreset, isIdeaCoverPresetId } from "./idea-covers";
 import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
 import { useWorkspace } from "./workspace";
+import {
+  clearIdeaDraft,
+  ideaHasUnsavedChanges,
+  loadIdeaDraft,
+  saveIdeaDraft,
+  type IdeaDraftScope,
+} from "./idea-drafts";
+import { useUnsavedChangesGuard } from "./navigation-guard";
 import {
   addLocalDays,
   addMonths,
@@ -591,7 +600,7 @@ export function Ideas() {
     saveIdea,
     deleteIdea,
   } = useIdeas();
-  const { activeSpace, memberships } = useWorkspace();
+  const { activeSpace, memberships, profile } = useWorkspace();
   const { promoteIdeaToAdventure } = useAdventureStore();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<IdeaCategoryFilter>("all");
@@ -756,6 +765,12 @@ export function Ideas() {
       <QuickAdd onClick={() => setEditing({ ...blankIdea })} />
       <IdeaSheet
         idea={editing}
+        draftScope={profile && activeSpace ? {
+          userId: profile.id,
+          spaceId: activeSpace.id,
+          mode: editing?.id ? "edit" : "create",
+          ideaId: editing?.id || undefined,
+        } : undefined}
         onClose={() => setEditing(null)}
         onSave={saveIdea}
         onDelete={deleteIdea}
@@ -786,33 +801,113 @@ export function Ideas() {
     </div>
   );
 }
-export function IdeaSheet({
-  idea,
-  onClose,
-  onSave,
-  onDelete,
-  canDelete,
-  onPlan,
-  onView,
-}: {
+type IdeaSheetProps = {
   idea: Idea | null;
+  draftScope?: IdeaDraftScope;
   onClose: () => void;
   onSave: (i: Idea) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   canDelete: boolean;
   onPlan: (idea: Idea) => void;
   onView: (id: string) => void;
-}) {
-  const [draft, setDraft] = useState<Idea | null>(idea);
+};
+
+export function IdeaSheet(props: IdeaSheetProps) {
+  if (!props.idea) return null;
+  const key = `${props.draftScope?.userId ?? "none"}:${props.draftScope?.spaceId ?? "none"}:${props.draftScope?.mode ?? "none"}:${props.idea.id || "new"}`;
+  return <IdeaSheetContent key={key} {...props} idea={props.idea} />;
+}
+
+function IdeaSheetContent({
+  idea,
+  draftScope,
+  onClose,
+  onSave,
+  onDelete,
+  canDelete,
+  onPlan,
+  onView,
+}: Omit<IdeaSheetProps, "idea"> & { idea: Idea }) {
+  const [initial] = useState(() => {
+    if (!draftScope) return { draft: idea, notice: null as string | null };
+    try {
+      const loaded = loadIdeaDraft(window.localStorage, draftScope, idea);
+      return {
+        draft: loaded.status === "restored" ? loaded.idea : idea,
+        notice:
+          loaded.status === "restored"
+            ? "Unsaved draft restored."
+            : loaded.status === "stale"
+              ? "A saved draft was older than this idea and was not restored."
+              : null,
+      };
+    } catch {
+      return { draft: idea, notice: null as string | null };
+    }
+  });
+  const [draft, setDraft] = useState<Idea>(initial.draft);
+  const [baseline, setBaseline] = useState<Idea>(idea);
+  const [draftNotice, setDraftNotice] = useState<string | null>(initial.notice);
+  const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [changingCover, setChangingCover] = useState(false);
-  if (idea && !draft) setDraft(idea);
-  if (!idea) return null;
-  const d = draft?.id === idea.id ? draft : idea;
+  const dirty = ideaHasUnsavedChanges(draft, baseline);
+
+  const clearStoredDraft = useCallback(() => {
+    if (!draftScope) return;
+    try {
+      clearIdeaDraft(window.localStorage, draftScope);
+    } catch {
+      // Storage may be unavailable in private or constrained browser modes.
+    }
+  }, [draftScope]);
+
+  const discard = useCallback(() => {
+    clearStoredDraft();
+    setDraft(baseline);
+    setDraftNotice(null);
+  }, [baseline, clearStoredDraft]);
+
+  useUnsavedChangesGuard(
+    {
+      isDirty: () => dirty,
+      discard: () => {
+        discard();
+        onClose();
+      },
+    },
+  );
+
+  useEffect(() => {
+    if (!draftScope || !draft || !baseline || !dirty) return;
+    const timer = window.setTimeout(() => {
+      try {
+        saveIdeaDraft(window.localStorage, draftScope, {
+          ...draft,
+          updatedAt: baseline.updatedAt,
+        });
+      } catch {
+        // Unsaved-change protection still works when storage is unavailable.
+      }
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [baseline, dirty, draft, draftScope]);
+
+  const wasDirty = useRef(false);
+  useEffect(() => {
+    if (dirty) {
+      wasDirty.current = true;
+    } else if (wasDirty.current) {
+      clearStoredDraft();
+      wasDirty.current = false;
+    }
+  }, [clearStoredDraft, dirty]);
+
+  const d = draft;
   const coverLabel = isIdeaCoverPresetId(d.coverPresetId)
     ? getIdeaCoverPreset(d.coverPresetId).label
     : "Automatic cover";
@@ -823,6 +918,9 @@ export function IdeaSheet({
     setSaveError(null);
     try {
       await onSave(d);
+      clearStoredDraft();
+      setBaseline(d);
+      setDraft(d);
       onClose();
     } catch (error) {
       setSaveError(
@@ -840,6 +938,7 @@ export function IdeaSheet({
     setDeleteError(null);
     try {
       await onDelete(idea.id);
+      clearStoredDraft();
       setConfirmingDelete(false);
       onClose();
     } catch (error) {
@@ -852,9 +951,21 @@ export function IdeaSheet({
       setDeleting(false);
     }
   };
+  const requestExit = (action: () => void) => {
+    if (!dirty) {
+      action();
+      return;
+    }
+    setPendingExit(() => action);
+  };
   return (
-    <Sheet open title={idea.id ? "Edit idea" : "Add an idea"} onClose={onClose}>
+    <Sheet
+      open
+      title={idea.id ? "Edit idea" : "Add an idea"}
+      onClose={() => requestExit(onClose)}
+    >
       <form className="idea-form" onSubmit={submit}>
+        {draftNotice && <p className="form-notice" role="status">{draftNotice}</p>}
         <label>
           Title
           <input
@@ -946,7 +1057,7 @@ export function IdeaSheet({
               <button
                 type="button"
                 className="text-action idea-promotion-action"
-                onClick={() => onView(idea.linkedAdventureId!)}
+                onClick={() => requestExit(() => onView(idea.linkedAdventureId!))}
               >
                 View adventure <ChevronRight />
               </button>
@@ -954,7 +1065,7 @@ export function IdeaSheet({
               <button
                 type="button"
                 className="text-action idea-promotion-action"
-                onClick={() => onPlan(d)}
+                onClick={() => requestExit(() => onPlan(d))}
               >
                 Turn into an adventure <ChevronRight />
               </button>
@@ -993,12 +1104,28 @@ export function IdeaSheet({
         }}
         onConfirm={() => void confirmDelete()}
       />
+      <ConfirmationDialog
+        open={Boolean(pendingExit)}
+        title="Discard unsaved changes?"
+        body="Your changes have not been saved."
+        cancelLabel="Keep editing"
+        confirmLabel="Discard changes"
+        pendingLabel="Discarding…"
+        onCancel={() => setPendingExit(null)}
+        onConfirm={() => {
+          const action = pendingExit;
+          setPendingExit(null);
+          discard();
+          action?.();
+        }}
+      />
       {changingCover && (
         <IdeaCoverPicker
           idea={d}
           onClose={() => setChangingCover(false)}
           onSave={async (coverPresetId) => {
             await onSave({ ...idea, coverPresetId });
+            setBaseline((current) => current ? { ...current, coverPresetId } : current);
             setDraft({ ...d, coverPresetId });
           }}
         />

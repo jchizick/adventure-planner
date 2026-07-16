@@ -127,7 +127,8 @@ export function SignInScreen({
           </form>
         )}
         <p className="access-footnote">
-          A private space for the people making the plans.
+          Already joined on another device? Sign in using the same email address
+          to access your shared space. No second invitation is needed.
         </p>
       </section>
     </main>

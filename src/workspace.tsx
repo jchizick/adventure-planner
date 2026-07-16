@@ -106,6 +106,7 @@ async function loadSpaces(memberships: SpaceMembership[]) {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const userId = user?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activeSpace, setActiveSpace] = useState<SharedSpace | null>(null);
   const [spaces, setSpaces] = useState<SharedSpace[]>([]);
@@ -115,20 +116,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const creatingSpaceRef = useRef(false);
 
   const load = useCallback(async (preferredSpaceId?: string) => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     setError(null);
     try {
       const [nextProfile, nextMemberships] = await Promise.all([
-        loadProfile(user.id),
-        loadMemberships(user.id),
+        loadProfile(userId),
+        loadMemberships(userId),
       ]);
       const spaces = await loadSpaces(nextMemberships);
       setProfile(nextProfile);
       setMemberships(nextMemberships);
       setSpaces(spaces);
       const persistedSpaceId = window.localStorage.getItem(
-        `our-adventures:active-space:${user.id}`,
+        `our-adventures:active-space:${userId}`,
       );
       const requestedSpaceId = preferredSpaceId ?? persistedSpaceId;
       const nextSpace =
@@ -136,7 +137,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveSpace(nextSpace);
       if (nextSpace)
         window.localStorage.setItem(
-          `our-adventures:active-space:${user.id}`,
+          `our-adventures:active-space:${userId}`,
           nextSpace.id,
         );
     } catch (nextError) {
@@ -148,7 +149,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => void load());

@@ -378,6 +378,9 @@ describe("IdeaSheet Date Night control", () => {
     );
     fireEvent.click(screen.getByText("Date Night").closest("label")!);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+    expect(cancelClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(cancelClose).toHaveBeenCalledTimes(1);
     expect(cancelSave).not.toHaveBeenCalled();
   });
