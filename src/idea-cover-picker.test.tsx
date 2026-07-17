@@ -8,6 +8,8 @@ import type { Idea } from "./types";
 beforeAll(() => {
   window.requestAnimationFrame = (callback) => window.setTimeout(callback, 0);
   window.cancelAnimationFrame = (handle) => window.clearTimeout(handle);
+  URL.createObjectURL = vi.fn(() => "blob:idea-cover-preview");
+  URL.revokeObjectURL = vi.fn();
 });
 
 afterEach(cleanup);
@@ -43,7 +45,8 @@ describe("IdeaCoverPicker", () => {
     expect(choices.getAllByRole("button")).toHaveLength(9);
     expect(choices.getByRole("button", { name: "Use Romantic dinner cover" })).toBeTruthy();
     expect(choices.getByRole("button", { name: "Use Sushi bar cover" })).toBeTruthy();
-    expect(screen.queryByLabelText(/Custom image URL/i)).toBeNull();
+    expect(screen.getByLabelText(/External image URL/i)).toBeTruthy();
+    expect(screen.getByLabelText(/Upload photo/i)).toBeTruthy();
   });
 
   it("persists a selected preset and restores the selection on reload", async () => {
@@ -51,7 +54,7 @@ describe("IdeaCoverPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use Quiet cafe cover" }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith("food-cafe"));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ coverPresetId: "food-cafe" }));
     cleanup();
     renderPicker({ ...idea, coverPresetId: "food-cafe" });
     expect(screen.getByRole("button", { name: "Use Quiet cafe cover" }).getAttribute("aria-pressed"))
@@ -65,7 +68,7 @@ describe("IdeaCoverPicker", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Automatic/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({}));
 
     cleanup();
     const nextSave = vi.fn().mockResolvedValue(undefined);
@@ -92,6 +95,16 @@ describe("IdeaCoverPicker", () => {
     expect((screen.getByRole("button", { name: "Save cover" }) as HTMLButtonElement).disabled)
       .toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(undefined));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({}));
+  });
+
+  it("previews an uploaded photo and submits the original file for processing", async () => {
+    const { onSave } = renderPicker();
+    const file = new File([new Uint8Array([1, 2, 3])], "cover.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Upload photo"), { target: { files: [file] } });
+    await waitFor(() => expect((screen.getByAltText("Idea cover preview") as HTMLImageElement).src)
+      .toContain("blob:idea-cover-preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ uploadFile: file }));
   });
 });

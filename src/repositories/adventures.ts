@@ -2,6 +2,12 @@ import { supabase } from "../lib/supabase";
 import { normalizeCategoryOrNull } from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
 import {
+  bestEffortCoverCleanup,
+  removeCoverObject,
+  signedCoverUrl,
+  uploadCoverFile,
+} from "../cover-storage";
+import {
   buildLocationWritePayload,
   locationDraftForPersistence,
   mapSavedLocation,
@@ -45,6 +51,7 @@ export type AdventureRow = {
   notes: string | null;
   cover_image_url: string | null;
   cover_variant: number | null;
+  cover_storage_path?: string | null;
   is_favorite: boolean;
   completed_at: string | null;
   created_by: string;
@@ -60,7 +67,7 @@ export const adventureColumns = `
   event_date, end_date, start_time, end_time, location, latitude, longitude, timezone,
   geocoded_location, location_provider, location_provider_id,
   location_address, location_source, location_confirmed_at,
-  notes, cover_image_url, cover_variant,
+  notes, cover_image_url, cover_variant, cover_storage_path,
   is_favorite, completed_at, created_by, updated_by, created_at, updated_at,
   creator_profile:profiles!adventures_created_by_fkey(display_name),
   updater_profile:profiles!adventures_updated_by_fkey(display_name)
@@ -102,6 +109,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     status: databaseToUiStatus[row.status],
     coverImage: row.cover_image_url ?? undefined,
     coverVariant: normalizeCoverVariant(row.cover_variant),
+    coverStoragePath: row.cover_storage_path ?? undefined,
     location: row.location ?? "Location to be decided",
     savedLocation,
     latitude: row.latitude ?? undefined,
@@ -120,6 +128,19 @@ export function mapAdventure(row: AdventureRow): Adventure {
     completedAt: row.completed_at ?? undefined,
     favorite: row.is_favorite,
   };
+}
+
+async function mapAdventureWithCover(
+  row: AdventureRow,
+  forceCoverRefresh = false,
+) {
+  const adventure = mapAdventure(row);
+  return row.cover_storage_path
+    ? {
+        ...adventure,
+        coverUrl: await signedCoverUrl(row.cover_storage_path, forceCoverRefresh),
+      }
+    : adventure;
 }
 
 function normalizeCoverVariant(
@@ -172,7 +193,9 @@ export async function loadAdventures(spaceId: string): Promise<Adventure[]> {
     .order("event_date", { ascending: true })
     .order("start_time", { ascending: true });
   if (error) throw repositoryError("load", error);
-  return ((data ?? []) as unknown as AdventureRow[]).map(mapAdventure);
+  return Promise.all(
+    ((data ?? []) as unknown as AdventureRow[]).map((row) => mapAdventureWithCover(row)),
+  );
 }
 
 export async function loadAdventure(
@@ -186,7 +209,7 @@ export async function loadAdventure(
     .eq("id", adventureId)
     .maybeSingle();
   if (error) throw repositoryError("load", error);
-  return data ? mapAdventure(data as unknown as AdventureRow) : null;
+  return data ? mapAdventureWithCover(data as unknown as AdventureRow) : null;
 }
 
 export async function createAdventure(
@@ -194,30 +217,48 @@ export async function createAdventure(
   userId: string,
   plan: AdventurePlanInput,
 ): Promise<Adventure> {
-  const locationPayload = adventureLocationPayload(plan);
-  const { data, error } = await supabase
-    .from("adventures")
-    .insert({
-      space_id: spaceId,
-      title: plan.title.trim(),
-      description: plan.description.trim() || null,
-      category: plan.category ?? "culture",
-      status: uiToDatabaseStatus[plan.status],
-      event_date: plan.date,
-      end_date: plan.endDate || null,
-      start_time: plan.startTime || null,
-      end_time: plan.endTime || null,
-      ...locationPayload,
-      notes: plan.notes.trim() || null,
-      cover_image_url: plan.coverImage?.trim() || null,
-      cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
-      created_by: userId,
-      updated_by: userId,
-    })
-    .select(adventureColumns)
-    .single();
-  if (error) throw repositoryError("create", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  const adventureId = crypto.randomUUID();
+  let uploadedPath: string | undefined;
+  if (plan.coverUploadFile)
+    uploadedPath = await uploadCoverFile({
+      spaceId,
+      recordType: "adventures",
+      recordId: adventureId,
+      file: plan.coverUploadFile,
+    });
+  const coverStoragePath = (uploadedPath ?? plan.coverStoragePath?.trim()) || null;
+  const coverImage = coverStoragePath ? null : plan.coverImage?.trim() || null;
+  try {
+    const locationPayload = adventureLocationPayload(plan);
+    const { data, error } = await supabase
+      .from("adventures")
+      .insert({
+        id: adventureId,
+        space_id: spaceId,
+        title: plan.title.trim(),
+        description: plan.description.trim() || null,
+        category: plan.category ?? "culture",
+        status: uiToDatabaseStatus[plan.status],
+        event_date: plan.date,
+        end_date: plan.endDate || null,
+        start_time: plan.startTime || null,
+        end_time: plan.endTime || null,
+        ...locationPayload,
+        notes: plan.notes.trim() || null,
+        cover_image_url: coverImage,
+        cover_variant: coverImage || coverStoragePath ? null : plan.coverVariant ?? null,
+        cover_storage_path: coverStoragePath,
+        created_by: userId,
+        updated_by: userId,
+      })
+      .select(adventureColumns)
+      .single();
+    if (error) throw repositoryError("create", error);
+    return mapAdventureWithCover(data as unknown as AdventureRow);
+  } catch (error) {
+    if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function updateAdventure(
@@ -228,31 +269,49 @@ export async function updateAdventure(
   preserveCompletion: boolean,
   previous: Adventure,
 ): Promise<Adventure> {
-  const payload: Record<string, unknown> = {
-    title: plan.title.trim(),
-    description: plan.description.trim() || null,
-    category: plan.category ?? "culture",
-    event_date: plan.date,
-    end_date: plan.endDate || null,
-    start_time: plan.startTime || null,
-    end_time: plan.endTime || null,
-    ...adventureLocationPayload(plan, previous.savedLocation),
-    notes: plan.notes.trim() || null,
-    cover_image_url: plan.coverImage?.trim() || null,
-    cover_variant: plan.coverImage?.trim() ? null : plan.coverVariant ?? null,
-    updated_by: userId,
-  };
-  if (!preserveCompletion) payload.status = uiToDatabaseStatus[plan.status];
-
-  const { data, error } = await supabase
-    .from("adventures")
-    .update(payload)
-    .eq("space_id", spaceId)
-    .eq("id", adventureId)
-    .select(adventureColumns)
-    .single();
-  if (error) throw repositoryError("update", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  let uploadedPath: string | undefined;
+  if (plan.coverUploadFile)
+    uploadedPath = await uploadCoverFile({
+      spaceId,
+      recordType: "adventures",
+      recordId: adventureId,
+      file: plan.coverUploadFile,
+    });
+  const coverStoragePath = (uploadedPath ?? plan.coverStoragePath?.trim()) || null;
+  const coverImage = coverStoragePath ? null : plan.coverImage?.trim() || null;
+  try {
+    const payload: Record<string, unknown> = {
+      title: plan.title.trim(),
+      description: plan.description.trim() || null,
+      category: plan.category ?? "culture",
+      event_date: plan.date,
+      end_date: plan.endDate || null,
+      start_time: plan.startTime || null,
+      end_time: plan.endTime || null,
+      ...adventureLocationPayload(plan, previous.savedLocation),
+      notes: plan.notes.trim() || null,
+      cover_image_url: coverImage,
+      cover_variant: coverImage || coverStoragePath ? null : plan.coverVariant ?? null,
+      cover_storage_path: coverStoragePath,
+      updated_by: userId,
+    };
+    if (!preserveCompletion) payload.status = uiToDatabaseStatus[plan.status];
+    const { data, error } = await supabase
+      .from("adventures")
+      .update(payload)
+      .eq("space_id", spaceId)
+      .eq("id", adventureId)
+      .select(adventureColumns)
+      .single();
+    if (error) throw repositoryError("update", error);
+    const saved = await mapAdventureWithCover(data as unknown as AdventureRow);
+    if (previous.coverStoragePath !== saved.coverStoragePath)
+      void bestEffortCoverCleanup(previous.coverStoragePath);
+    return saved;
+  } catch (error) {
+    if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function updateAdventureCover(
@@ -260,21 +319,40 @@ export async function updateAdventureCover(
   adventureId: string,
   userId: string,
   selection: AdventureCoverSelection,
+  previous: Adventure,
 ): Promise<Adventure> {
-  const coverImage = selection.coverImage?.trim() || null;
-  const { data, error } = await supabase
-    .from("adventures")
-    .update({
-      cover_image_url: coverImage,
-      cover_variant: coverImage ? null : selection.coverVariant ?? null,
-      updated_by: userId,
-    })
-    .eq("space_id", spaceId)
-    .eq("id", adventureId)
-    .select(adventureColumns)
-    .single();
-  if (error) throw repositoryError("update the cover for", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  let uploadedPath: string | undefined;
+  if (selection.uploadFile)
+    uploadedPath = await uploadCoverFile({
+      spaceId,
+      recordType: "adventures",
+      recordId: adventureId,
+      file: selection.uploadFile,
+    });
+  const coverStoragePath = (uploadedPath ?? selection.coverStoragePath?.trim()) || null;
+  const coverImage = coverStoragePath ? null : selection.coverImage?.trim() || null;
+  try {
+    const { data, error } = await supabase
+      .from("adventures")
+      .update({
+        cover_image_url: coverImage,
+        cover_variant: coverImage || coverStoragePath ? null : selection.coverVariant ?? null,
+        cover_storage_path: coverStoragePath,
+        updated_by: userId,
+      })
+      .eq("space_id", spaceId)
+      .eq("id", adventureId)
+      .select(adventureColumns)
+      .single();
+    if (error) throw repositoryError("update the cover for", error);
+    const saved = await mapAdventureWithCover(data as unknown as AdventureRow);
+    if (previous.coverStoragePath !== saved.coverStoragePath)
+      void bestEffortCoverCleanup(previous.coverStoragePath);
+    return saved;
+  } catch (error) {
+    if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function duplicateAdventure(
@@ -294,6 +372,7 @@ export async function duplicateAdventure(
 export async function deleteAdventure(
   spaceId: string,
   adventureId: string,
+  coverStoragePath?: string,
 ): Promise<void> {
   const { data, error } = await supabase
     .from("adventures")
@@ -304,6 +383,7 @@ export async function deleteAdventure(
     .maybeSingle();
   if (error || !data)
     throw repositoryError("delete", error ?? { message: "Adventure not found" });
+  void bestEffortCoverCleanup(coverStoragePath);
 }
 
 export async function promoteIdea(
@@ -311,23 +391,38 @@ export async function promoteIdea(
   ideaId: string,
   plan: AdventurePlanInput,
 ): Promise<Adventure> {
-  const locationPayload = promotionLocationRpcPayload(plan);
-  const { data, error } = await supabase.rpc("promote_idea_to_adventure_v3", {
-    p_idea_id: ideaId,
-    p_title: plan.title.trim(),
-    p_description: plan.description.trim(),
-    p_event_date: plan.date,
-    p_end_date: plan.endDate || null,
-    p_start_time: plan.startTime || null,
-    p_end_time: plan.endTime || null,
-    p_status: uiToDatabaseStatus[plan.status],
-    ...locationPayload,
-    p_notes: plan.notes.trim() || null,
-    p_category: plan.category ?? null,
-    p_cover_image_url: plan.coverImage?.trim() || null,
-  });
-  if (error) throw repositoryError("promote", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  let uploadedPath: string | undefined;
+  if (plan.coverUploadFile)
+    uploadedPath = await uploadCoverFile({
+      spaceId,
+      recordType: "ideas",
+      recordId: ideaId,
+      file: plan.coverUploadFile,
+    });
+  const coverStoragePath = (uploadedPath ?? plan.coverStoragePath?.trim()) || null;
+  try {
+    const locationPayload = promotionLocationRpcPayload(plan);
+    const { data, error } = await supabase.rpc("promote_idea_to_adventure_v4", {
+      p_idea_id: ideaId,
+      p_title: plan.title.trim(),
+      p_description: plan.description.trim(),
+      p_event_date: plan.date,
+      p_end_date: plan.endDate || null,
+      p_start_time: plan.startTime || null,
+      p_end_time: plan.endTime || null,
+      p_status: uiToDatabaseStatus[plan.status],
+      ...locationPayload,
+      p_notes: plan.notes.trim() || null,
+      p_category: plan.category ?? null,
+      p_cover_image_url: coverStoragePath ? null : plan.coverImage?.trim() || null,
+      p_cover_storage_path: coverStoragePath,
+    });
+    if (error) throw repositoryError("promote", error);
+    return mapAdventureWithCover(data as unknown as AdventureRow);
+  } catch (error) {
+    if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function updateAdventureNotes(
@@ -344,7 +439,7 @@ export async function updateAdventureNotes(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("update", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  return mapAdventureWithCover(data as unknown as AdventureRow);
 }
 
 export async function updateAdventureFavorite(
@@ -361,7 +456,7 @@ export async function updateAdventureFavorite(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError("update", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  return mapAdventureWithCover(data as unknown as AdventureRow);
 }
 
 export async function updateAdventureCompletion(
@@ -382,5 +477,13 @@ export async function updateAdventureCompletion(
     .select(adventureColumns)
     .single();
   if (error) throw repositoryError(completed ? "complete" : "restore", error);
-  return mapAdventure(data as unknown as AdventureRow);
+  return mapAdventureWithCover(data as unknown as AdventureRow);
+}
+
+export async function refreshAdventureCover(adventure: Adventure) {
+  if (!adventure.coverStoragePath) return adventure;
+  return {
+    ...adventure,
+    coverUrl: await signedCoverUrl(adventure.coverStoragePath, true),
+  };
 }

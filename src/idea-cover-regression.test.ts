@@ -37,8 +37,9 @@ describe("Idea cover workflow regressions", () => {
     ]);
   });
 
-  it("keeps Idea promotion tied to the legacy optional image field", () => {
-    expect(pagesSource).toContain("coverImage: planning.optionalImage");
+  it("keeps promotion cover selection stable without writing preset IDs as image URLs", () => {
+    expect(pagesSource).toContain("coverStoragePath: idea?.coverStoragePath");
+    expect(pagesSource).toContain("resolveIdeaCoverPreset(idea).path");
     expect(pagesSource).not.toContain("coverImage: planning.coverPresetId");
   });
 });

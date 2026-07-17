@@ -20,6 +20,7 @@ import {
   updateAdventureFavorite,
   updateAdventureCompletion,
   updateAdventureNotes,
+  refreshAdventureCover,
 } from "./repositories/adventures";
 import {
   createStop,
@@ -142,6 +143,19 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
     const frame = window.requestAnimationFrame(() => void load());
     return () => window.cancelAnimationFrame(frame);
   }, [load]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void Promise.all(adventures.map(refreshAdventureCover)).then((refreshed) =>
+        setAdventures((current) => current.map((item) =>
+          refreshed.find((candidate) => candidate.id === item.id) ?? item,
+        )),
+      );
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [adventures]);
 
   const replaceAdventure = useCallback((next: Adventure) => {
     setAdventures((current) =>
@@ -283,9 +297,11 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
       updateAdventureCover: async (id, selection) => {
         if (!user || !activeSpace)
           throw new Error("Open your shared space and try again.");
-        replaceAdventure(
-          await updateAdventureCoverRow(activeSpace.id, id, user.id, selection),
-        );
+        const current = adventures.find((adventure) => adventure.id === id);
+        if (!current) throw new Error("Adventure not found.");
+        replaceAdventure(await updateAdventureCoverRow(
+          activeSpace.id, id, user.id, selection, current,
+        ));
       },
       duplicateAdventure: async (id) => {
         if (!activeSpace)
@@ -297,7 +313,8 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
       deleteAdventure: async (id) => {
         if (!activeSpace)
           throw new Error("Open your shared space and try again.");
-        await deleteAdventureRow(activeSpace.id, id);
+        const current = adventures.find((adventure) => adventure.id === id);
+        await deleteAdventureRow(activeSpace.id, id, current?.coverStoragePath);
         setAdventures((current) =>
           current.filter((adventure) => adventure.id !== id),
         );

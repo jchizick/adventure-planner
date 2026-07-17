@@ -22,23 +22,25 @@ type EditableIdea = Pick<
   | "optionalImage"
   | "optionalLocation"
   | "coverPresetId"
+  | "coverStoragePath"
   | "proposedStartDate"
   | "proposedStartTime"
   | "proposedEndDate"
   | "proposedEndTime"
->;
+> & { pendingCoverFileName?: string };
 
 type StoredIdeaDraft = {
   version: 1;
   savedAt: number;
   baseUpdatedAt?: string;
   values: EditableIdea;
+  coverUploadPending: boolean;
 };
 
 export type LoadedIdeaDraft =
   | { status: "none" }
   | { status: "stale" }
-  | { status: "restored"; idea: Idea };
+  | { status: "restored"; idea: Idea; photoNeedsReselection: boolean };
 
 export function editableIdeaValues(idea: Idea): EditableIdea {
   return {
@@ -52,6 +54,8 @@ export function editableIdeaValues(idea: Idea): EditableIdea {
     optionalImage: idea.optionalImage,
     optionalLocation: idea.optionalLocation,
     coverPresetId: idea.coverPresetId,
+    coverStoragePath: idea.coverStoragePath,
+    pendingCoverFileName: idea.pendingCoverFile?.name,
     proposedStartDate: idea.proposedStartDate,
     proposedStartTime: idea.proposedStartTime,
     proposedEndDate: idea.proposedEndDate,
@@ -102,6 +106,7 @@ export function saveIdeaDraft(
     savedAt: now,
     baseUpdatedAt: idea.updatedAt,
     values: editableIdeaValues(idea),
+    coverUploadPending: Boolean(idea.pendingCoverFile),
   };
   storage.setItem(ideaDraftKey(scope), JSON.stringify(payload));
 }
@@ -129,7 +134,13 @@ export function loadIdeaDraft(
       storage.removeItem(key);
       return { status: "stale" };
     }
-    return { status: "restored", idea: { ...serverIdea, ...parsed.values } };
+    const { pendingCoverFileName: _pendingCoverFileName, ...values } = parsed.values;
+    void _pendingCoverFileName;
+    return {
+      status: "restored",
+      idea: { ...serverIdea, ...values, pendingCoverFile: undefined },
+      photoNeedsReselection: parsed.coverUploadPending === true,
+    };
   } catch {
     storage.removeItem(key);
     return { status: "none" };

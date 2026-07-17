@@ -177,10 +177,10 @@ export function getCategoryCoverByVariant(
 export function resolveAdventureCover(
   adventure: Pick<
     Adventure,
-    "id" | "category" | "coverImage" | "coverVariant"
+    "id" | "category" | "coverImage" | "coverVariant" | "coverUrl"
   >,
 ) {
-  return adventure.coverImage?.trim() ||
+  return adventure.coverUrl?.trim() || adventure.coverImage?.trim() ||
     getCategoryCoverByVariant(adventure.category, adventure.coverVariant) ||
     getStableCategoryCover(adventure.category, adventure.id);
 }
@@ -193,7 +193,7 @@ export function resolveMemoryCover({
 }: {
   adventure: Pick<
     Adventure,
-    "id" | "category" | "coverImage" | "coverVariant"
+    "id" | "category" | "coverImage" | "coverVariant" | "coverUrl"
   >;
   featuredPhotoUrl?: string | null;
   firstPhotoUrl?: string | null;

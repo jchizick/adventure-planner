@@ -82,6 +82,13 @@ seeded Today content that has not yet been migrated. Invitation and membership
 mutations use owner-checked RPCs; the browser has no direct mutation grants on
 `space_invitations` or `space_members`.
 
+Idea and Adventure cover uploads use the private `cover-images` Storage bucket
+created by the migrations. Database rows store only stable, space-scoped object
+paths (`spaces/<space-id>/ideas|adventures/<record-id>/cover/<uuid>.jpg`);
+the browser generates short-lived signed URLs for rendering. Promotion and
+duplication deliberately share the stable object reference, and cleanup removes
+an object only after no Idea or Adventure references it.
+
 ## Invitation email delivery
 
 The deployed `send-space-invitation` Edge Function validates the signed-in

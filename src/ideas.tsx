@@ -15,6 +15,7 @@ import {
   loadIdeas,
   updateIdea,
   updateIdeaStatus,
+  refreshIdeaCover,
   type IdeaDraft,
 } from "./repositories/ideas";
 import type { Adventure, Idea, IdeaStatus } from "./types";
@@ -26,7 +27,7 @@ type IdeasState = {
   loading: boolean;
   error: string | null;
   retry: () => Promise<void>;
-  saveIdea: (idea: Idea) => Promise<void>;
+  saveIdea: (idea: Idea) => Promise<Idea>;
   setIdeaStatus: (id: string, status: IdeaStatus) => Promise<void>;
   deleteIdea: (id: string) => Promise<void>;
   markIdeaPromoted: (id: string, adventure: Adventure) => void;
@@ -44,6 +45,8 @@ function toDraft(idea: Idea): IdeaDraft {
     optionalLink: idea.optionalLink,
     optionalImage: idea.optionalImage,
     coverPresetId: idea.coverPresetId ?? null,
+    coverStoragePath: idea.coverStoragePath,
+    pendingCoverFile: idea.pendingCoverFile,
     optionalLocation: idea.optionalLocation,
     isDateNight: idea.isDateNight,
     proposedStartDate: idea.proposedStartDate,
@@ -84,6 +87,15 @@ export function IdeasProvider({ children }: { children: ReactNode }) {
     return () => window.cancelAnimationFrame(frame);
   }, [load]);
 
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void Promise.all(ideas.map(refreshIdeaCover)).then(setIdeas);
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [ideas]);
+
   const value = useMemo<IdeasState>(
     () => ({
       ideas,
@@ -93,17 +105,20 @@ export function IdeasProvider({ children }: { children: ReactNode }) {
       saveIdea: async (idea) => {
         if (!user || !activeSpace)
           throw new Error("Open your shared space and try again.");
-        if (savingRef.current) return;
+        if (savingRef.current)
+          throw new Error("This idea is already being saved.");
         savingRef.current = true;
         try {
+          const previous = ideas.find((item) => item.id === idea.id);
           const saved = idea.id
-            ? await updateIdea(activeSpace.id, idea.id, toDraft(idea))
+            ? await updateIdea(activeSpace.id, idea.id, toDraft(idea), previous ?? idea)
             : await createIdea(activeSpace.id, user.id, toDraft(idea));
           setIdeas((current) =>
             idea.id
               ? current.map((item) => (item.id === saved.id ? saved : item))
               : [saved, ...current],
           );
+          return saved;
         } finally {
           savingRef.current = false;
         }
@@ -119,7 +134,10 @@ export function IdeasProvider({ children }: { children: ReactNode }) {
       deleteIdea: async (id) => {
         if (!activeSpace)
           throw new Error("Open your shared space and try again.");
-        await deleteIdeaRecord(activeSpace.id, id);
+        const current = ideas.find((idea) => idea.id === id);
+        if (current?.coverStoragePath)
+          await deleteIdeaRecord(activeSpace.id, id, current.coverStoragePath);
+        else await deleteIdeaRecord(activeSpace.id, id);
         setIdeas((current) => current.filter((item) => item.id !== id));
       },
       markIdeaPromoted: (id, adventure) => {

@@ -70,8 +70,9 @@ import {
 } from "./category-visuals";
 import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
 import { IdeaCoverPicker } from "./idea-cover-picker";
-import { getIdeaCoverPreset, isIdeaCoverPresetId } from "./idea-covers";
+import { getIdeaCoverPreset, isIdeaCoverPresetId, resolveIdeaCoverPreset } from "./idea-covers";
 import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
+import { validateCoverFile } from "./cover-storage";
 import { useWorkspace } from "./workspace";
 import {
   clearIdeaDraft,
@@ -937,7 +938,6 @@ export function Ideas() {
               plan: {
                 ...plan,
                 category: planning.category,
-                coverImage: planning.optionalImage,
               },
               promote: promoteIdeaToAdventure,
               reconcile: markIdeaPromoted,
@@ -955,7 +955,7 @@ type IdeaSheetProps = {
   mode?: IdeaDraftScope["mode"];
   draftScope?: IdeaDraftScope;
   onClose: () => void;
-  onSave: (i: Idea) => Promise<void>;
+  onSave: (i: Idea) => Promise<Idea | void>;
   onDelete: (id: string) => Promise<void>;
   canDelete: boolean;
   onPlan: (idea: Idea) => void;
@@ -987,7 +987,9 @@ function IdeaSheetContent({
         draft: loaded.status === "restored" ? loaded.idea : idea,
         notice:
           loaded.status === "restored"
-            ? "Unsaved draft restored."
+            ? loaded.photoNeedsReselection
+              ? "Your draft was restored, but the selected photo needs to be chosen again."
+              : "Unsaved draft restored."
             : loaded.status === "stale"
               ? "A saved draft was older than this idea and was not restored."
               : null,
@@ -1062,9 +1064,13 @@ function IdeaSheetContent({
   }, [clearStoredDraft, dirty]);
 
   const d = draft;
-  const coverLabel = isIdeaCoverPresetId(d.coverPresetId)
-    ? getIdeaCoverPreset(d.coverPresetId).label
-    : "Automatic cover";
+  const coverLabel = d.pendingCoverFile || d.coverStoragePath
+    ? "Uploaded photo"
+    : d.optionalImage
+      ? "External image"
+      : isIdeaCoverPresetId(d.coverPresetId)
+        ? getIdeaCoverPreset(d.coverPresetId).label
+        : "Automatic cover";
   const externalUrl = safeIdeaUrl(d.optionalLink);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -1084,10 +1090,10 @@ function IdeaSheetContent({
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave(normalizedDraft);
+      const saved = await onSave(normalizedDraft);
       clearStoredDraft();
-      setBaseline(normalizedDraft);
-      setDraft(normalizedDraft);
+      setBaseline(saved ?? normalizedDraft);
+      setDraft(saved ?? normalizedDraft);
       onClose();
     } catch (error) {
       setSaveError(
@@ -1276,8 +1282,7 @@ function IdeaSheetContent({
             <span>Open link</span>
           </a>
         )}
-        {idea.id && (
-          <div className="idea-cover-field">
+        <div className="idea-cover-field">
             <span className="idea-cover-field-label">Cover</span>
             <button
               type="button"
@@ -1294,8 +1299,7 @@ function IdeaSheetContent({
               <strong>{coverLabel}</strong>
               <span className="idea-cover-change">Change</span>
             </button>
-          </div>
-        )}
+        </div>
         {saveError && (
           <p className="form-error" role="alert">
             {saveError}
@@ -1376,10 +1380,30 @@ function IdeaSheetContent({
         <IdeaCoverPicker
           idea={d}
           onClose={() => setChangingCover(false)}
-          onSave={async (coverPresetId) => {
-            await onSave({ ...idea, coverPresetId });
-            setBaseline((current) => current ? { ...current, coverPresetId } : current);
-            setDraft({ ...d, coverPresetId });
+          onSave={async (selection) => {
+            const next: Idea = {
+              ...(idea.id ? idea : d),
+              coverPresetId: selection.coverPresetId,
+              optionalImage: selection.optionalImage,
+              coverStoragePath: selection.coverStoragePath,
+              coverUrl: selection.coverUrl,
+              pendingCoverFile: selection.uploadFile,
+            };
+            if (!idea.id) {
+              setDraft(next);
+              return;
+            }
+            const saved = await onSave(next);
+            const persisted = saved ?? next;
+            const cover = {
+              coverPresetId: persisted.coverPresetId,
+              optionalImage: persisted.optionalImage,
+              coverStoragePath: persisted.coverStoragePath,
+              coverUrl: persisted.coverUrl,
+              pendingCoverFile: persisted.pendingCoverFile,
+            };
+            setBaseline((current) => ({ ...current, ...cover }));
+            setDraft((current) => ({ ...current, ...cover }));
           }}
         />
       )}
@@ -1424,7 +1448,11 @@ function AdventureFormSheet({
       location: idea?.optionalLocation || "",
       notes: "",
       category: idea?.category || "culture",
-      coverImage: idea?.optionalImage,
+      coverImage: idea?.coverStoragePath
+        ? undefined
+        : idea?.optionalImage || (idea ? resolveIdeaCoverPreset(idea).path : undefined),
+      coverStoragePath: idea?.coverStoragePath,
+      coverUrl: idea?.coverUrl,
     };
     return {
       ...base,
@@ -1435,6 +1463,13 @@ function AdventureFormSheet({
   });
   const [errors, setErrors] = useState<AdventureFormErrors>({});
   const [saving, setSaving] = useState(false);
+  const [changingCover, setChangingCover] = useState(false);
+  const [localCoverPreview, setLocalCoverPreview] = useState<string | undefined>(() =>
+    plan.coverUploadFile ? URL.createObjectURL(plan.coverUploadFile) : undefined,
+  );
+  useEffect(() => {
+    return () => { if (localCoverPreview) URL.revokeObjectURL(localCoverPreview); };
+  }, [localCoverPreview]);
   const update = <K extends keyof AdventurePlanInput>(
     key: K,
     value: AdventurePlanInput[K],
@@ -1514,6 +1549,40 @@ function AdventureFormSheet({
             ))}
           </select>
         </label>
+        <div className="idea-cover-field">
+          <span className="idea-cover-field-label">Cover</span>
+          <button
+            type="button"
+            className="idea-cover-control"
+            aria-label="Change adventure cover"
+            disabled={saving}
+            onClick={() => setChangingCover(true)}
+          >
+            <span className="idea-cover-thumbnail idea-cover-field-thumbnail" style={{ width: 52, height: 52 }}>
+              <SafeImage
+                src={localCoverPreview || resolveAdventureCover({
+                  id: adventureId || idea?.id || "new-adventure",
+                  category: plan.category,
+                  coverImage: plan.coverImage,
+                  coverVariant: plan.coverVariant,
+                  coverUrl: plan.coverUrl,
+                })}
+                fallbackSrc={GENERIC_ADVENTURE_COVER}
+                alt=""
+                width={52}
+                height={52}
+              />
+            </span>
+            <strong>{plan.coverUploadFile || plan.coverStoragePath
+              ? "Uploaded photo"
+              : plan.coverImage
+                ? "Custom cover"
+                : plan.coverVariant
+                  ? "Library cover"
+                  : "Automatic cover"}</strong>
+            <span className="idea-cover-change">Change</span>
+          </button>
+        </div>
         <div className="form-row">
           <label>
             Start date
@@ -1626,6 +1695,34 @@ function AdventureFormSheet({
           </button>
         </div>
       </form>
+      {changingCover && (
+        <CoverPhotoSheet
+          adventure={{
+            id: adventureId || idea?.id || "new-adventure",
+            category: plan.category,
+            coverImage: plan.coverImage,
+            coverVariant: plan.coverVariant,
+            coverStoragePath: plan.coverStoragePath,
+            coverUrl: localCoverPreview || plan.coverUrl,
+            pendingCoverFile: plan.coverUploadFile,
+          }}
+          onClose={() => setChangingCover(false)}
+          onSave={async (selection) => {
+            setLocalCoverPreview(selection.uploadFile
+              ? URL.createObjectURL(selection.uploadFile)
+              : selection.coverUrl);
+            setPlan((current) => ({
+              ...current,
+              coverImage: selection.coverImage,
+              coverVariant: selection.coverVariant,
+              coverStoragePath: selection.coverStoragePath,
+              coverUrl: selection.coverUrl,
+              coverUploadFile: selection.uploadFile,
+            }));
+            setChangingCover(false);
+          }}
+        />
+      )}
     </Sheet>
   );
 }
@@ -2251,12 +2348,12 @@ export function CoverPhotoSheet({
 }: {
   adventure: Pick<
     Adventure,
-    "id" | "category" | "coverImage" | "coverVariant"
-  >;
+    "id" | "category" | "coverImage" | "coverVariant" | "coverStoragePath" | "coverUrl"
+  > & { pendingCoverFile?: File };
   onClose: () => void;
   onSave: (selection: AdventureCoverSelection) => Promise<void>;
 }) {
-  type CoverMode = "automatic" | "custom" | string;
+  type CoverMode = "automatic" | "custom" | "uploaded" | string;
   type CustomStatus = "idle" | "loading" | "valid" | "invalid";
   const currentCover = adventure.coverImage?.trim() || "";
   const currentVariant = adventure.coverVariant;
@@ -2270,7 +2367,9 @@ export function CoverPhotoSheet({
       categoryCoverAssets.some(({ path }) => path === currentCover)
     ? currentCover
     : currentVariantCover;
-  const initialMode: CoverMode = currentCover
+  const initialMode: CoverMode = adventure.coverStoragePath || adventure.pendingCoverFile
+    ? "uploaded"
+    : currentCover
     ? currentLibraryCover ?? "custom"
     : currentLibraryCover ?? "automatic";
   const automaticCover = getStableCategoryCover(
@@ -2289,7 +2388,11 @@ export function CoverPhotoSheet({
       : "idle",
   );
   const [lastValidPreview, setLastValidPreview] = useState(
-    currentLibraryCover ?? automaticCover,
+    adventure.coverUrl ?? currentLibraryCover ?? automaticCover,
+  );
+  const [uploadFile, setUploadFile] = useState<File | undefined>(adventure.pendingCoverFile);
+  const [uploadPreview, setUploadPreview] = useState<string | undefined>(() =>
+    adventure.pendingCoverFile ? URL.createObjectURL(adventure.pendingCoverFile) : undefined,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2297,19 +2400,22 @@ export function CoverPhotoSheet({
   const isSupported =
     !trimmed || /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/");
   const selectedLibraryCover = mode !== "automatic" && mode !== "custom"
-    ? mode
+      && mode !== "uploaded" ? mode
     : undefined;
-  const preview = mode === "custom" && isSupported && trimmed &&
+  const preview = mode === "uploaded"
+    ? uploadPreview || adventure.coverUrl || lastValidPreview
+    : mode === "custom" && isSupported && trimmed &&
       customStatus !== "invalid"
     ? trimmed
     : selectedLibraryCover ?? (mode === "custom"
       ? lastValidPreview
       : automaticCover);
-  const isDirty = mode !== initialMode ||
+  const isDirty = mode !== initialMode || Boolean(uploadFile) ||
     (mode === "custom" && trimmed !==
       (initialMode === "custom" ? currentCover : ""));
   const canSave = isDirty && !saving &&
-    (mode !== "custom" || isSupported && customStatus === "valid");
+    (mode !== "custom" || isSupported && customStatus === "valid") &&
+    (mode !== "uploaded" || Boolean(uploadFile || adventure.coverStoragePath));
   const variantOptions = categoryCoverAssets.map<CoverPickerOption<string>>(
     (asset) => ({
     value: asset.path,
@@ -2339,6 +2445,10 @@ export function CoverPhotoSheet({
     };
   }, [isSupported, mode, trimmed]);
 
+  useEffect(() => {
+    return () => { if (uploadPreview) URL.revokeObjectURL(uploadPreview); };
+  }, [uploadPreview]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!canSave) {
@@ -2350,7 +2460,11 @@ export function CoverPhotoSheet({
     setError(null);
     try {
       await onSave(
-        mode === "custom"
+        mode === "uploaded"
+          ? uploadFile
+            ? { uploadFile }
+            : { coverStoragePath: adventure.coverStoragePath, coverUrl: adventure.coverUrl }
+        : mode === "custom"
           ? { coverImage: trimmed }
           : mode === "automatic"
           ? {}
@@ -2392,18 +2506,56 @@ export function CoverPhotoSheet({
       onSelectAutomatic={() => {
         setMode("automatic");
         setCoverImage("");
+        setUploadFile(undefined);
+        setUploadPreview(undefined);
         setCustomStatus("idle");
         setError(null);
       }}
       onSelectOption={(path) => {
         setMode(path);
         setCoverImage("");
+        setUploadFile(undefined);
+        setUploadPreview(undefined);
         setCustomStatus("idle");
         setError(null);
       }}
       onClose={onClose}
       onSubmit={(event) => void submit(event)}
     >
+      <div className="cover-upload-controls">
+        <label className="cover-upload-button">
+          <ImagePlus aria-hidden="true" />
+          {adventure.coverStoragePath || uploadFile ? "Replace photo" : "Upload photo"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={saving}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              try {
+                validateCoverFile(file);
+                setUploadFile(file);
+                setUploadPreview(URL.createObjectURL(file));
+                setMode("uploaded");
+                setCoverImage("");
+                setError(null);
+              } catch (nextError) {
+                setError(nextError instanceof Error ? nextError.message : "Choose another image.");
+              }
+            }}
+          />
+        </label>
+        {(adventure.coverStoragePath || uploadFile) && mode === "uploaded" && (
+          <button type="button" className="text-action" onClick={() => {
+            setUploadFile(undefined);
+            setUploadPreview(undefined);
+            setMode("automatic");
+            setError(null);
+          }}>Remove photo</button>
+        )}
+      </div>
       <label className="cover-custom-url">
         Custom image URL
         <input
@@ -2415,6 +2567,8 @@ export function CoverPhotoSheet({
             const nextSupported = /^https?:\/\//i.test(nextTrimmed) ||
               nextTrimmed.startsWith("/");
             setCoverImage(nextValue);
+            setUploadFile(undefined);
+            setUploadPreview(undefined);
             setMode(nextTrimmed ? "custom" : "automatic");
             setCustomStatus(
               nextTrimmed ? nextSupported ? "loading" : "invalid" : "idle",
@@ -2874,6 +3028,8 @@ export function AdventureDetail() {
               category: a.category,
               coverImage: a.coverImage,
               coverVariant: a.coverVariant,
+              coverStoragePath: a.coverStoragePath,
+              coverUrl: a.coverUrl,
             }}
             submitLabel="Save changes"
             savingLabel="Saving…"

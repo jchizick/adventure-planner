@@ -1900,6 +1900,41 @@ main {
   background: #eef0e9;
   margin: 8px 0 14px;
 }
+.cover-upload-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cover-upload-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cover-upload-button:hover { border-color: #cec3b9; }
+.cover-upload-button:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--coral) 28%, transparent);
+  outline-offset: 2px;
+}
+.cover-upload-button svg { width: 18px; height: 18px; color: var(--coral); }
+.cover-upload-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .itinerary-map-status {
   min-height: 20px;
   display: flex;

@@ -202,6 +202,10 @@ describe("IdeaSheet cover editing", () => {
       expect(onSave).toHaveBeenCalledWith({
         ...idea,
         coverPresetId: "outdoors-canoe-lake",
+        optionalImage: undefined,
+        coverStoragePath: undefined,
+        coverUrl: undefined,
+        pendingCoverFile: undefined,
       }),
     );
     expect(screen.queryByRole("dialog", { name: "Change cover" })).toBeNull();

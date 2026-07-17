@@ -6,6 +6,9 @@ export type AdventureCoverVariant = 1 | 2 | 3;
 export type AdventureCoverSelection = {
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
+  coverStoragePath?: string;
+  coverUrl?: string;
+  uploadFile?: File;
 };
 export type NormalizedAddress = {
   name?: string;
@@ -80,6 +83,9 @@ export interface Idea {
   optionalLink?: string;
   optionalImage?: string;
   coverPresetId?: string;
+  coverStoragePath?: string;
+  coverUrl?: string;
+  pendingCoverFile?: File;
   optionalLocation?: string;
   linkedAdventureId?: string;
 }
@@ -118,6 +124,8 @@ export interface Adventure {
   status: AdventureStatus;
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
+  coverStoragePath?: string;
+  coverUrl?: string;
   location: string;
   savedLocation: SavedLocation;
   latitude?: number;
@@ -196,4 +204,7 @@ export interface AdventurePlanInput {
   category?: Category;
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
+  coverStoragePath?: string;
+  coverUrl?: string;
+  coverUploadFile?: File;
 }

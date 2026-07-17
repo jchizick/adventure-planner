@@ -7,6 +7,8 @@ import { CoverPhotoSheet } from "./pages";
 beforeAll(() => {
   window.requestAnimationFrame = (callback) => window.setTimeout(callback, 0);
   window.cancelAnimationFrame = (handle) => window.clearTimeout(handle);
+  URL.createObjectURL = vi.fn(() => "blob:adventure-cover-preview");
+  URL.revokeObjectURL = vi.fn();
 });
 
 afterEach(cleanup);
@@ -100,5 +102,23 @@ describe("Adventure CoverPhotoSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: /Automatic/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({}));
+  });
+
+  it("supports an uploaded cover without removing existing cover choices", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CoverPhotoSheet
+        adventure={{ id: "adventure-id", category: "outdoors" }}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    const file = new File([new Uint8Array([1, 2, 3])], "cover.webp", { type: "image/webp" });
+    fireEvent.change(screen.getByLabelText("Upload photo"), { target: { files: [file] } });
+    await waitFor(() => expect((screen.getByAltText("Adventure cover preview") as HTMLImageElement).src)
+      .toContain("blob:adventure-cover-preview"));
+    fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ uploadFile: file }));
+    expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
   });
 });

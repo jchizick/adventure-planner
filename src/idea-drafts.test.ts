@@ -56,7 +56,8 @@ describe("Idea draft persistence", () => {
     saveIdeaDraft(localStorage, scope, { ...idea, title: "Draft title", optionalLink: "example.com" }, 1000);
     expect(loadIdeaDraft(localStorage, scope, idea, 2000)).toEqual({
       status: "restored",
-      idea: { ...idea, title: "Draft title", optionalLink: "example.com" },
+      idea: { ...idea, title: "Draft title", optionalLink: "example.com", pendingCoverFile: undefined },
+      photoNeedsReselection: false,
     });
     expect(localStorage.getItem(ideaDraftKey({ ...scope, userId: "another" }))).toBeNull();
   });

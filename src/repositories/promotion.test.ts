@@ -72,7 +72,10 @@ describe("promotion repository transaction boundary", () => {
       date: plan.date,
       endDate: plan.endDate,
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("promote_idea_to_adventure_v3", expect.objectContaining({ p_idea_id: "idea-1" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("promote_idea_to_adventure_v4", expect.objectContaining({
+      p_idea_id: "idea-1",
+      p_cover_storage_path: null,
+    }));
     expect(mocks.from).not.toHaveBeenCalled();
   });
 

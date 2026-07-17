@@ -15,19 +15,22 @@ export function IdeaCoverThumbnail({
     | "description"
     | "isDateNight"
     | "coverPresetId"
+    | "optionalImage"
+    | "coverUrl"
   >;
   size: 52 | 58 | 64;
   className?: string;
 }) {
   const preset = resolveIdeaCoverPreset(idea);
+  const customSource = idea.coverUrl?.trim() || idea.optionalImage?.trim();
   return (
     <div
       className={["idea-cover-thumbnail", className].filter(Boolean).join(" ")}
-      data-idea-cover-preset={preset.id}
+      data-idea-cover-preset={customSource ? undefined : preset.id}
       style={{ width: size, height: size }}
     >
       <SafeImage
-        src={preset.path}
+        src={customSource || preset.path}
         fallbackSrc={getIdeaCoverPreset("general-default").path}
         alt=""
         loading="lazy"
