@@ -29,6 +29,7 @@ export type AdventureRow = {
   category: string | null;
   status: DatabaseAdventureStatus;
   event_date: string;
+  end_date?: string | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;
@@ -56,7 +57,7 @@ export type AdventureRow = {
 
 export const adventureColumns = `
   id, space_id, source_idea_id, title, description, category, status,
-  event_date, start_time, end_time, location, latitude, longitude, timezone,
+  event_date, end_date, start_time, end_time, location, latitude, longitude, timezone,
   geocoded_location, location_provider, location_provider_id,
   location_address, location_source, location_confirmed_at,
   notes, cover_image_url, cover_variant,
@@ -95,6 +96,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     title: row.title,
     description: row.description ?? "",
     date: row.event_date,
+    endDate: row.end_date ?? undefined,
     startTime: displayTime(row.start_time),
     endTime: displayTime(row.end_time),
     status: databaseToUiStatus[row.status],
@@ -202,7 +204,8 @@ export async function createAdventure(
       category: plan.category ?? "culture",
       status: uiToDatabaseStatus[plan.status],
       event_date: plan.date,
-      start_time: plan.startTime,
+      end_date: plan.endDate || null,
+      start_time: plan.startTime || null,
       end_time: plan.endTime || null,
       ...locationPayload,
       notes: plan.notes.trim() || null,
@@ -230,7 +233,8 @@ export async function updateAdventure(
     description: plan.description.trim() || null,
     category: plan.category ?? "culture",
     event_date: plan.date,
-    start_time: plan.startTime,
+    end_date: plan.endDate || null,
+    start_time: plan.startTime || null,
     end_time: plan.endTime || null,
     ...adventureLocationPayload(plan, previous.savedLocation),
     notes: plan.notes.trim() || null,
@@ -308,12 +312,13 @@ export async function promoteIdea(
   plan: AdventurePlanInput,
 ): Promise<Adventure> {
   const locationPayload = promotionLocationRpcPayload(plan);
-  const { data, error } = await supabase.rpc("promote_idea_to_adventure_v2", {
+  const { data, error } = await supabase.rpc("promote_idea_to_adventure_v3", {
     p_idea_id: ideaId,
     p_title: plan.title.trim(),
     p_description: plan.description.trim(),
     p_event_date: plan.date,
-    p_start_time: plan.startTime,
+    p_end_date: plan.endDate || null,
+    p_start_time: plan.startTime || null,
     p_end_time: plan.endTime || null,
     p_status: uiToDatabaseStatus[plan.status],
     ...locationPayload,

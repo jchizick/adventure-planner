@@ -70,6 +70,10 @@ export interface Idea {
   addedByUserId?: string;
   isDateNight: boolean;
   scheduledFor?: string;
+  proposedStartDate?: string;
+  proposedStartTime?: string;
+  proposedEndDate?: string;
+  proposedEndTime?: string;
   spaceId?: string;
   createdAt: string;
   updatedAt?: string;
@@ -108,6 +112,7 @@ export interface Adventure {
   title: string;
   description: string;
   date: string;
+  endDate?: string;
   startTime: string;
   endTime: string;
   status: AdventureStatus;
@@ -166,17 +171,22 @@ export interface CalendarEvent {
   title: string;
   subtitle: string;
   date: string;
+  originalDate?: string;
+  endDate?: string;
   startTime?: string;
   endTime?: string;
   category: Category;
-  status: AdventureStatus;
+  status: AdventureStatus | IdeaStatus;
+  kind?: "adventure" | "proposal";
   adventureId?: string;
+  ideaId?: string;
   allDay?: boolean;
 }
 export interface AdventurePlanInput {
   title: string;
   description: string;
   date: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   status: Extract<IdeaStatus, "Tentative" | "Confirmed">;

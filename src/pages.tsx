@@ -84,10 +84,14 @@ import {
   buildMonthGrid,
   formatAdventureCountdown,
   formatAdventureDateTimeRange,
+  expandCalendarEventRanges,
+  isAdventureHappeningNow,
+  isAdventureMemoryEligible,
   monthForDate,
   parseLocalDate,
   sortCalendarEvents,
   toLocalDateKey,
+  validateDateTimeRange,
 } from "./calendar";
 import {
   ConfirmationDialog,
@@ -134,13 +138,6 @@ const catIcon: Record<string, typeof Heart> = {
   social: Users,
   errands: ShoppingBag,
 };
-const formatDate = (iso: string) =>
-  new Intl.DateTimeFormat("en-CA", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(iso + "T12:00:00"));
-
 type ItineraryStopMarkerProps = {
   className: string;
   displayIndex: number;
@@ -208,16 +205,21 @@ export function Today() {
   const spaceName = activeSpace?.name ?? "Our Adventures";
   const [creating, setCreating] = useState(false);
   const recentIdeas = useMemo(() => selectRecentIdeas(ideas), [ideas]);
+  const now = new Date();
+  const todayKey = toLocalDateKey(now);
   const upcoming = [...adventures]
-    .filter((a) => !a.completed)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter((a) => !a.completed && (isAdventureHappeningNow(a, now) || a.date >= todayKey))
+    .sort((a, b) => {
+      const activeDifference = Number(isAdventureHappeningNow(b, now)) - Number(isAdventureHappeningNow(a, now));
+      return activeDifference || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+    });
   const next = upcoming[0];
   const countdownKey = next
-    ? `${next.id}:${next.date}:${next.startTime}:${next.endTime}`
+    ? `${next.id}:${next.date}:${next.endDate}:${next.startTime}:${next.endTime}`
     : undefined;
   const countdownNow = useMinuteNow(countdownKey);
   const countdown = next
-    ? formatAdventureCountdown(next.date, next.startTime, next.endTime, countdownNow)
+    ? formatAdventureCountdown(next.date, next.startTime, next.endTime, countdownNow, next.endDate)
     : null;
   const createSheet = creating ? (
     <AdventureFormSheet
@@ -318,7 +320,7 @@ export function Today() {
         <div className="hero-copy">
           <h2>{next.title}</h2>
           <p>
-            {formatDate(next.date)} · {next.startTime}
+            {formatAdventureDateTimeRange({ startDate: next.date, startTime: next.startTime, endDate: next.endDate, endTime: next.endTime })}
           </p>
           <span
             className={`countdown ${countdown?.state ?? "invalid"}`}
@@ -350,7 +352,7 @@ export function Today() {
             <span>
               <b>{a.title}</b>
               <small>
-                {formatDate(a.date)} · {a.startTime}
+                {formatAdventureDateTimeRange({ startDate: a.date, startTime: a.startTime, endDate: a.endDate, endTime: a.endTime })}
               </small>
             </span>
             <em>{a.status}</em>
@@ -861,6 +863,16 @@ export function Ideas() {
                     )}
                     <small>Added by {i.addedByUserId ? creatorNames.get(i.addedByUserId) || i.addedBy : i.addedBy}</small>
                   </div>
+                  {!i.linkedAdventureId && i.proposedStartDate && (
+                    <small className="idea-proposed-date">
+                      Proposed · {formatAdventureDateTimeRange({
+                        startDate: i.proposedStartDate,
+                        startTime: i.proposedStartTime,
+                        endDate: i.proposedEndDate,
+                        endTime: i.proposedEndTime,
+                      })}
+                    </small>
+                  )}
                 </div>
               </button>
               <IdeaActionsMenu
@@ -986,6 +998,7 @@ function IdeaSheetContent({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [changingCover, setChangingCover] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [dateErrors, setDateErrors] = useState<ReturnType<typeof validateDateTimeRange>>({});
   const urlErrorId = useId();
   const dirty = ideaHasUnsavedChanges(draft, baseline);
 
@@ -1049,7 +1062,15 @@ function IdeaSheetContent({
     if (saving) return;
     const normalizedUrl = normalizeIdeaUrl(d.optionalLink);
     setUrlError(normalizedUrl.error);
-    if (normalizedUrl.error) return;
+    const nextDateErrors = validateDateTimeRange({
+      startDate: d.proposedStartDate,
+      startTime: d.proposedStartTime,
+      endDate: d.proposedEndDate,
+      endTime: d.proposedEndTime,
+      requireStartDate: false,
+    });
+    setDateErrors(nextDateErrors);
+    if (normalizedUrl.error || Object.keys(nextDateErrors).length) return;
     const normalizedDraft = { ...d, optionalLink: normalizedUrl.url };
     setSaving(true);
     setSaveError(null);
@@ -1160,6 +1181,57 @@ function IdeaSheetContent({
             onChange={(e) => setDraft({ ...d, isDateNight: e.target.checked })}
           />
         </label>
+        <fieldset className="proposed-date-fields">
+          <legend>Proposed date <span>Optional</span></legend>
+          <div className="form-row">
+            <label>
+              Start date
+              <input
+                type="date"
+                value={d.proposedStartDate ?? ""}
+                aria-invalid={Boolean(dateErrors.startDate)}
+                onChange={(event) => {
+                  const proposedStartDate = event.target.value || undefined;
+                  setDraft({
+                    ...d,
+                    proposedStartDate,
+                    ...(!proposedStartDate ? {
+                      proposedStartTime: undefined,
+                      proposedEndDate: undefined,
+                      proposedEndTime: undefined,
+                    } : {}),
+                  });
+                }}
+              />
+              {dateErrors.startDate && <span className="field-error">{dateErrors.startDate}</span>}
+            </label>
+            {d.proposedStartDate && <label>
+              Start time <span className="optional-label">Optional</span>
+              <input type="time" value={d.proposedStartTime ?? ""} onChange={(event) => setDraft({ ...d, proposedStartTime: event.target.value || undefined })} />
+            </label>}
+          </div>
+          {d.proposedStartDate && <div className="form-row">
+            <label>
+              End date <span className="optional-label">Optional</span>
+              <input
+                type="date"
+                min={d.proposedStartDate}
+                value={d.proposedEndDate ?? ""}
+                aria-invalid={Boolean(dateErrors.endDate)}
+                onChange={(event) => {
+                  const proposedEndDate = event.target.value || undefined;
+                  setDraft({ ...d, proposedEndDate, proposedEndTime: proposedEndDate ? d.proposedEndTime : undefined });
+                }}
+              />
+              {dateErrors.endDate && <span className="field-error">{dateErrors.endDate}</span>}
+            </label>
+            {d.proposedEndDate && <label>
+              End time <span className="optional-label">Optional</span>
+              <input type="time" value={d.proposedEndTime ?? ""} aria-invalid={Boolean(dateErrors.endTime)} onChange={(event) => setDraft({ ...d, proposedEndTime: event.target.value || undefined })} />
+              {dateErrors.endTime && <span className="field-error">{dateErrors.endTime}</span>}
+            </label>}
+          </div>}
+        </fieldset>
         <label>
           Website or link
           <input
@@ -1306,7 +1378,7 @@ function IdeaSheetContent({
   );
 }
 type AdventureFormErrors = Partial<
-  Record<"title" | "date" | "startTime" | "endTime" | "form", string>
+  Record<"title" | "date" | "startTime" | "endDate" | "endTime" | "form", string>
 >;
 
 function AdventureFormSheet({
@@ -1335,9 +1407,10 @@ function AdventureFormSheet({
     const base = initialPlan ?? {
       title: idea?.title || "",
       description: idea?.description || "",
-      date: "",
-      startTime: "",
-      endTime: "",
+      date: idea?.proposedStartDate || "",
+      endDate: idea?.proposedEndDate || "",
+      startTime: idea?.proposedStartTime?.slice(0, 5) || "",
+      endTime: idea?.proposedEndTime?.slice(0, 5) || "",
       status: "Tentative",
       location: idea?.optionalLocation || "",
       notes: "",
@@ -1361,10 +1434,16 @@ function AdventureFormSheet({
     event.preventDefault();
     const nextErrors: AdventureFormErrors = {};
     if (!plan.title.trim()) nextErrors.title = "Enter a title.";
-    if (!plan.date) nextErrors.date = "Choose a date.";
-    if (!plan.startTime) nextErrors.startTime = "Choose a start time.";
-    if (plan.endTime && plan.endTime < plan.startTime)
-      nextErrors.endTime = "End time must be later than the start time.";
+    const rangeErrors = validateDateTimeRange({
+      startDate: plan.date,
+      startTime: plan.startTime,
+      endDate: plan.endDate,
+      endTime: plan.endTime,
+    });
+    if (rangeErrors.startDate) nextErrors.date = rangeErrors.startDate;
+    if (rangeErrors.startTime) nextErrors.startTime = rangeErrors.startTime;
+    if (rangeErrors.endDate) nextErrors.endDate = rangeErrors.endDate;
+    if (rangeErrors.endTime) nextErrors.endTime = rangeErrors.endTime;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length || saving) return;
     setSaving(true);
@@ -1428,9 +1507,9 @@ function AdventureFormSheet({
         </label>
         <div className="form-row">
           <label>
-            Date
+            Start date
             <input
-              aria-label="Adventure date"
+              aria-label="Adventure start date"
               type="date"
               value={plan.date}
               onChange={(event) => update("date", event.target.value)}
@@ -1470,7 +1549,22 @@ function AdventureFormSheet({
             )}
           </label>
           <label>
-            End time
+            End date <span className="optional-label">Optional</span>
+            <input
+              aria-label="Adventure end date"
+              type="date"
+              min={plan.date}
+              value={plan.endDate}
+              onChange={(event) => {
+                const endDate = event.target.value;
+                setPlan((current) => ({ ...current, endDate, endTime: endDate ? current.endTime : "" }));
+              }}
+              aria-invalid={!!errors.endDate}
+            />
+            {errors.endDate && <span className="field-error">{errors.endDate}</span>}
+          </label>
+          {plan.endDate && <label>
+            End time <span className="optional-label">Optional</span>
             <input
               aria-label="Adventure end time"
               type="time"
@@ -1481,7 +1575,7 @@ function AdventureFormSheet({
             {errors.endTime && (
               <span className="field-error">{errors.endTime}</span>
             )}
-          </label>
+          </label>}
         </div>
         <LocationSearchField
           id="adventure-location"
@@ -1541,8 +1635,19 @@ const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function Calendar() {
   const nav = useNavigate();
-  const { calendarEvents, calendarTargetDate, loading, error, retry } =
+  const { calendarEvents, calendarTargetDate, loading, error, retry, promoteIdeaToAdventure } =
     useAdventureStore();
+  const {
+    ideas,
+    saveIdea,
+    deleteIdea,
+    retry: retryIdeas,
+    loading: ideasLoading,
+    error: ideasError,
+  } = useIdeas();
+  const { activeSpace, memberships, profile } = useWorkspace();
+  const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const [planningIdea, setPlanningIdea] = useState<Idea | null>(null);
   const todayKey = toLocalDateKey(new Date());
   const initialDate = calendarTargetDate || todayKey;
   const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -1551,14 +1656,31 @@ export function Calendar() {
   );
 
   const monthDays = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth]);
+  const allCalendarEvents = useMemo(() => expandCalendarEventRanges([
+    ...calendarEvents,
+    ...ideas.filter((idea) => idea.proposedStartDate && !idea.linkedAdventureId).map((idea) => ({
+      id: `proposal-${idea.id}`,
+      title: idea.title,
+      subtitle: "Proposed idea",
+      date: idea.proposedStartDate!,
+      endDate: idea.proposedEndDate,
+      startTime: idea.proposedStartTime,
+      endTime: idea.proposedEndTime,
+      category: idea.category,
+      status: idea.status,
+      ideaId: idea.id,
+      kind: "proposal" as const,
+      allDay: !idea.proposedStartTime,
+    })),
+  ]), [calendarEvents, ideas]);
   const eventsByDate = useMemo(() => {
-    const grouped = new Map<string, typeof calendarEvents>();
-    for (const event of calendarEvents) {
+    const grouped = new Map<string, typeof allCalendarEvents>();
+    for (const event of allCalendarEvents) {
       const existing = grouped.get(event.date) || [];
       grouped.set(event.date, [...existing, event]);
     }
     return grouped;
-  }, [calendarEvents]);
+  }, [allCalendarEvents]);
   const selectedEvents = sortCalendarEvents(
     eventsByDate.get(selectedDate) || [],
   );
@@ -1590,15 +1712,15 @@ export function Calendar() {
           </button>
         }
       />
-      {loading && (
+      {(loading || ideasLoading) && (
         <p className="inline-state" role="status">
           Loading Adventures…
         </p>
       )}
-      {error && (
+      {(error || ideasError) && (
         <div className="ideas-state ideas-error" role="alert">
-          <p>{error}</p>
-          <button onClick={() => void retry()}>Try again</button>
+          <p>{error || ideasError}</p>
+          <button onClick={() => void Promise.all([retry(), retryIdeas()])}>Try again</button>
         </div>
       )}
       <div className="month-nav">
@@ -1656,7 +1778,12 @@ export function Calendar() {
               }}
             >
               <span>{day.date.getDate()}</span>
-              {eventCount > 0 && <i className="event-dot" aria-hidden="true" />}
+              {eventCount > 0 && (
+                <span className="event-dots" aria-hidden="true">
+                  {eventsByDate.get(day.key)?.some((event) => event.kind !== "proposal") && <i className="event-dot" />}
+                  {eventsByDate.get(day.key)?.some((event) => event.kind === "proposal") && <i className="event-dot proposal" />}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1675,20 +1802,20 @@ export function Calendar() {
         <div className="agenda-list">
           {selectedEvents.map((event) => (
             <button
-              key={event.id}
-              className={`agenda-row ${event.status.toLowerCase()} ${event.category.replaceAll(" ", "-").replace("&", "and")}`}
-              onClick={() =>
-                event.adventureId && nav(`/adventures/${event.adventureId}`)
-              }
+              key={`${event.id}-${event.date}`}
+              className={`agenda-row ${event.status.toLowerCase()} ${event.category.replaceAll(" ", "-").replace("&", "and")} ${event.kind === "proposal" ? "proposal" : ""}`}
+              onClick={() => {
+                if (event.ideaId) setEditingIdea(ideas.find((idea) => idea.id === event.ideaId) ?? null);
+                else if (event.adventureId) nav(`/adventures/${event.adventureId}`);
+              }}
             >
               <span className="agenda-time">
-                {event.allDay ? "All day" : event.startTime || "Time TBD"}
+                {event.kind === "proposal" ? "Proposed" : event.allDay ? "All day" : event.startTime || "Time TBD"}
               </span>
               <span className="agenda-copy">
                 <b>{event.title}</b>
                 <small>
-                  {event.subtitle}
-                  {event.endTime ? ` · until ${event.endTime}` : ""}
+                  {formatAdventureDateTimeRange({ startDate: event.originalDate ?? event.date, startTime: event.startTime, endDate: event.endDate, endTime: event.endTime })}
                 </small>
               </span>
               <ChevronRight />
@@ -1703,6 +1830,28 @@ export function Calendar() {
           <button onClick={() => nav("/ideas")}>Browse ideas</button>
         </div>
       )}
+      <IdeaSheet
+        idea={editingIdea}
+        mode="edit"
+        draftScope={editingIdea && profile && activeSpace ? { userId: profile.id, spaceId: activeSpace.id, mode: "edit", ideaId: editingIdea.id } : undefined}
+        onClose={() => setEditingIdea(null)}
+        onSave={saveIdea}
+        onDelete={deleteIdea}
+        canDelete={Boolean(activeSpace && memberships.some((membership) => membership.spaceId === activeSpace.id))}
+        onPlan={(idea) => { setEditingIdea(null); setPlanningIdea(idea); }}
+        onView={(id) => nav(`/adventures/${id}`)}
+      />
+      {planningIdea && <AdventureFormSheet
+        title="Turn idea into an Adventure"
+        idea={planningIdea}
+        onClose={() => setPlanningIdea(null)}
+        onSubmit={async (plan) => {
+          const created = await promoteIdeaToAdventure(planningIdea.id, plan);
+          await retryIdeas();
+          setPlanningIdea(null);
+          nav(`/adventures/${created.id}`);
+        }}
+      />}
     </div>
   );
 }
@@ -2437,12 +2586,10 @@ export function AdventureDetail() {
         {duplicating && <p className="action-feedback" role="status">Duplicating adventure…</p>}
         {actionError && <p className="form-error action-feedback" role="alert">{actionError}</p>}
         <p className="detail-date">
-          {formatDate(a.date)}
-          <br />
           {formatAdventureDateTimeRange({
             startDate: a.date,
             startTime: a.startTime,
-            endDate: a.date,
+            endDate: a.endDate,
             endTime: a.endTime,
           })}
         </p>
@@ -2704,6 +2851,7 @@ export function AdventureDetail() {
               title: a.title,
               description: a.description,
               date: a.date,
+              endDate: a.endDate ?? (a.endTime ? a.date : ""),
               startTime: timeToInput(a.startTime),
               endTime: timeToInput(a.endTime),
               status: a.status === "Tentative" ? "Tentative" : "Confirmed",
@@ -2790,7 +2938,7 @@ export function AdventureDetail() {
         )}
         <button
           className={`complete-button ${a.completed ? "done" : ""}`}
-          disabled={completionSaving}
+          disabled={completionSaving || (!a.completed && !isAdventureMemoryEligible(a))}
           onClick={async () => {
             setCompletionSaving(true); setCompletionError(null);
             try { await setAdventureCompleted(a.id, !a.completed); }
@@ -2808,6 +2956,9 @@ export function AdventureDetail() {
             </>
           )}
         </button>
+        {!a.completed && !isAdventureMemoryEligible(a) && (
+          <p className="action-feedback" role="status">This Adventure can become a memory after its final day.</p>
+        )}
         {completionError && <p className="form-error" role="alert">{completionError}</p>}
       </section>
     </div>
@@ -2817,7 +2968,7 @@ export function Memories() {
   const nav = useNavigate();
   const { adventures, loading, error, retry } = useAdventureStore();
   const done = useMemo(() => [...adventures]
-    .filter((adventure) => adventure.completed)
+    .filter((adventure) => adventure.completed && isAdventureMemoryEligible(adventure))
     .sort((first, second) =>
       (second.completedAt || second.date).localeCompare(first.completedAt || first.date),
     ), [adventures]);
@@ -2864,7 +3015,7 @@ export function Memories() {
                   height={800}
                 />
               </div>
-              <small>{formatDate(a.date)}</small>
+              <small>{formatAdventureDateTimeRange({ startDate: a.date, startTime: a.startTime, endDate: a.endDate, endTime: a.endTime })}</small>
               <h3>{a.title}</h3>
               <p>{summaries[a.id]?.reflection || a.notes || a.description || a.location}</p>
               <span>{a.location}{summaries[a.id]?.photoCount ? ` · ${summaries[a.id].photoCount} ${summaries[a.id].photoCount === 1 ? "photo" : "photos"}` : " · Add photos"}</span>

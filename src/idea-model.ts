@@ -121,6 +121,10 @@ export function duplicateIdeaForEditing(
     createdAt: now,
     updatedAt: undefined,
     scheduledFor: undefined,
+    proposedStartDate: undefined,
+    proposedStartTime: undefined,
+    proposedEndDate: undefined,
+    proposedEndTime: undefined,
     linkedAdventureId: undefined,
   };
 }

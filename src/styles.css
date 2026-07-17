@@ -1620,6 +1620,41 @@ main {
   padding: 2px 4px 4px 2px;
   overflow-y: auto;
 }
+.agenda-row.proposal {
+  border-style: dashed;
+  border-left-color: var(--lav);
+  background: color-mix(in srgb, var(--lav) 12%, var(--surface));
+}
+.event-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.event-dot.proposal {
+  background: var(--lav);
+  outline: 1px solid var(--surface);
+}
+.calendar-day.selected .event-dot.proposal { background: var(--lav); }
+.proposed-date-fields {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.proposed-date-fields legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+.proposed-date-fields legend span,
+.optional-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.idea-proposed-date {
+  display: block;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
 .cover-variant-option {
   position: relative;
   min-width: 0;

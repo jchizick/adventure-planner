@@ -22,6 +22,10 @@ type EditableIdea = Pick<
   | "optionalImage"
   | "optionalLocation"
   | "coverPresetId"
+  | "proposedStartDate"
+  | "proposedStartTime"
+  | "proposedEndDate"
+  | "proposedEndTime"
 >;
 
 type StoredIdeaDraft = {
@@ -48,6 +52,10 @@ export function editableIdeaValues(idea: Idea): EditableIdea {
     optionalImage: idea.optionalImage,
     optionalLocation: idea.optionalLocation,
     coverPresetId: idea.coverPresetId,
+    proposedStartDate: idea.proposedStartDate,
+    proposedStartTime: idea.proposedStartTime,
+    proposedEndDate: idea.proposedEndDate,
+    proposedEndTime: idea.proposedEndTime,
   };
 }
 

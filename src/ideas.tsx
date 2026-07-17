@@ -44,6 +44,10 @@ function toDraft(idea: Idea): IdeaDraft {
     coverPresetId: idea.coverPresetId ?? null,
     optionalLocation: idea.optionalLocation,
     isDateNight: idea.isDateNight,
+    proposedStartDate: idea.proposedStartDate,
+    proposedStartTime: idea.proposedStartTime,
+    proposedEndDate: idea.proposedEndDate,
+    proposedEndTime: idea.proposedEndTime,
   };
 }
 

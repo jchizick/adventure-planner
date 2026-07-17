@@ -20,7 +20,7 @@ import {
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "./auth";
-import { formatAdventureDateTimeRange } from "./calendar";
+import { formatAdventureDateTimeRange, isAdventureMemoryEligible } from "./calendar";
 import {
   GENERIC_ADVENTURE_COVER,
   resolveMemoryCover,
@@ -44,14 +44,6 @@ type UploadItem = {
   status: "uploading" | "failed";
   message?: string;
 };
-
-const memoryDate = (value: string) =>
-  new Intl.DateTimeFormat("en-CA", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${value}T12:00:00`));
 
 function Lightbox({
   photos,
@@ -206,7 +198,7 @@ export function MemoryDetail() {
     () => adventure ? formatAdventureDateTimeRange({
       startDate: adventure.date,
       startTime: adventure.startTime,
-      endDate: adventure.date,
+      endDate: adventure.endDate,
       endTime: adventure.endTime,
     }) : "",
     [adventure],
@@ -218,7 +210,7 @@ export function MemoryDetail() {
     return <div className="memory-route-state" role="alert"><p>{adventuresError}</p><button onClick={() => void retry()}>Try again</button></div>;
   if (!adventure)
     return <div className="memory-route-state"><h1>Memory not found</h1><p>This adventure may have been removed.</p><Link to="/memories">Back to Memories</Link></div>;
-  if (!adventure.completed)
+  if (!adventure.completed || !isAdventureMemoryEligible(adventure))
     return <div className="memory-route-state"><Camera /><h1>A memory in the making</h1><p>Memories become available after an adventure is completed.</p><Link to={`/adventures/${adventure.id}`}>View adventure details</Link></div>;
 
   const saveReflection = async () => {
@@ -298,7 +290,7 @@ export function MemoryDetail() {
         <div className="memory-hero-content">
           <span className="memory-completed">Completed</span>
           <h1>{adventure.title}</h1>
-          <p>{memoryDate(adventure.date)}{timeLabel ? ` · ${timeLabel}` : ""}</p>
+          <p>{timeLabel}</p>
           <p><MapPin /> {adventure.location}</p>
           {adventure.favorite && <span className="memory-favourite"><Heart fill="currentColor" /> Favourite</span>}
         </div>

@@ -22,6 +22,10 @@ type IdeaRow = {
   image_url: string | null;
   cover_preset_id: string | null;
   location: string | null;
+  proposed_start_date: string | null;
+  proposed_start_time: string | null;
+  proposed_end_date: string | null;
+  proposed_end_time: string | null;
   added_by: string;
   linked_adventure_id: string | null;
   created_at: string;
@@ -45,6 +49,10 @@ export type IdeaDraft = Pick<
   | "optionalLink"
   | "optionalImage"
   | "optionalLocation"
+  | "proposedStartDate"
+  | "proposedStartTime"
+  | "proposedEndDate"
+  | "proposedEndTime"
   | "isDateNight"
 > & { coverPresetId?: string | null };
 
@@ -60,6 +68,10 @@ const ideaColumns = `
   image_url,
   cover_preset_id,
   location,
+  proposed_start_date,
+  proposed_start_time,
+  proposed_end_date,
+  proposed_end_time,
   added_by,
   linked_adventure_id,
   created_at,
@@ -102,7 +114,11 @@ function mapIdea(row: IdeaRow): Idea {
     addedByUserId: row.added_by,
     isDateNight:
       row.is_date_night === true || isLegacyDateNightCategory(row.category),
-    scheduledFor: linkedAdventure?.event_date ?? undefined,
+    scheduledFor: linkedAdventure?.event_date ?? row.proposed_start_date ?? undefined,
+    proposedStartDate: row.proposed_start_date ?? undefined,
+    proposedStartTime: row.proposed_start_time ?? undefined,
+    proposedEndDate: row.proposed_end_date ?? undefined,
+    proposedEndTime: row.proposed_end_time ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     optionalLink: row.optional_link ?? undefined,
@@ -126,6 +142,17 @@ function writableFields(draft: IdeaDraft) {
     optional_link: normalizedUrl.url ?? null,
     image_url: draft.optionalImage?.trim() || null,
     location: draft.optionalLocation?.trim() || null,
+    proposed_start_date: draft.proposedStartDate || null,
+    proposed_start_time: draft.proposedStartDate && draft.proposedStartTime
+      ? draft.proposedStartTime
+      : null,
+    proposed_end_date: draft.proposedStartDate && draft.proposedEndDate
+      ? draft.proposedEndDate
+      : null,
+    proposed_end_time:
+      draft.proposedStartDate && draft.proposedEndDate && draft.proposedEndTime
+        ? draft.proposedEndTime
+        : null,
     ...(draft.coverPresetId === null
       ? { cover_preset_id: null }
       : isIdeaCoverPresetId(draft.coverPresetId)
