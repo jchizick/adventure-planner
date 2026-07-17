@@ -5,9 +5,9 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 
 describe("mobile and session reliability configuration", () => {
   it("launches the standalone app from the canonical root", () => {
-    const manifest = JSON.parse(read("../public/manifest.webmanifest"));
+    const manifest = JSON.parse(read("../public/site.webmanifest"));
     expect(manifest).toMatchObject({ start_url: "/", scope: "/", display: "standalone" });
-    expect(read("../index.html")).toContain('href="/manifest.webmanifest"');
+    expect(read("../index.html")).toContain('href="/site.webmanifest"');
   });
 
   it("uses persistent Supabase sessions without a service worker reload path", () => {
