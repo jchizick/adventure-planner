@@ -6,7 +6,7 @@ export const IDEA_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export type IdeaDraftScope = {
   userId: string;
   spaceId: string;
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "duplicate";
   ideaId?: string;
 };
 
@@ -56,7 +56,11 @@ export function ideaHasUnsavedChanges(current: Idea, baseline: Idea) {
 }
 
 export function ideaDraftKey(scope: IdeaDraftScope) {
-  const record = scope.mode === "edit" ? scope.ideaId || "unknown" : "new";
+  const record = scope.mode === "create"
+    ? "new"
+    : scope.mode === "edit"
+      ? scope.ideaId || "unknown"
+      : `duplicate:${scope.ideaId || "unknown"}`;
   return `our-adventures:idea-draft:v${DRAFT_VERSION}:${encodeURIComponent(scope.userId)}:${encodeURIComponent(scope.spaceId)}:${scope.mode}:${encodeURIComponent(record)}`;
 }
 
@@ -75,6 +79,7 @@ function isStoredDraft(value: unknown): value is StoredIdeaDraft {
     Array.isArray(values.tags) &&
     values.tags.every((tag) => typeof tag === "string") &&
     typeof values.isDateNight === "boolean"
+    && (values.optionalLink === undefined || typeof values.optionalLink === "string")
   );
 }
 

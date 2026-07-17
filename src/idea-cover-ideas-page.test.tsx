@@ -51,6 +51,7 @@ beforeEach(() => {
   mocks.useWorkspace.mockReset().mockReturnValue({
     activeSpace: { id: "space-id", name: "Shared plans" },
     memberships: [{ spaceId: "space-id" }],
+    profile: { id: "current-user", displayName: "Liz" },
   });
   mocks.loadSpaceMembers
     .mockReset()
@@ -60,7 +61,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Saved Idea cover rendering", () => {
-  it("uses the shared photo thumbnail while leaving all eight filter glyphs intact", () => {
+  it("uses the shared photo thumbnail while leaving all ten filter glyphs intact", () => {
     const { container } = render(
       <MemoryRouter>
         <Ideas />
@@ -68,7 +69,7 @@ describe("Saved Idea cover rendering", () => {
     );
 
     const filters = container.querySelectorAll(".category-tile");
-    expect(filters).toHaveLength(8);
+    expect(filters).toHaveLength(10);
     for (const filter of filters) {
       expect(filter.querySelector("svg")).toBeTruthy();
       expect(filter.querySelector("img")).toBeNull();
@@ -87,12 +88,26 @@ describe("Saved Idea cover rendering", () => {
   });
 
   it("preserves the existing card interaction", () => {
-    const { container } = render(
+    render(
       <MemoryRouter>
         <Ideas />
       </MemoryRouter>,
     );
-    fireEvent.click(container.querySelector(".idea-card")!);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Hiking through the park" }));
     expect(screen.getByRole("dialog", { name: "Edit idea" })).toBeTruthy();
+  });
+
+  it("opens a separate prefilled duplicate from the Idea menu", () => {
+    render(
+      <MemoryRouter>
+        <Ideas />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Hiking through the park" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate idea" }));
+    expect(screen.getByRole("dialog", { name: "Duplicate idea" })).toBeTruthy();
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Hiking through the park — Copy");
+    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("Idea");
+    expect(idea.id).toBe("trail-idea");
   });
 });

@@ -15,6 +15,8 @@ export const CATEGORY_IDEA_ART: Record<Category, string> = {
   culture: "/category-art/ideas/culture.webp",
   "at-home": "/category-art/ideas/at-home.webp",
   "trips-getaways": "/category-art/ideas/trips-getaways.webp",
+  social: GENERIC_IDEA_ART,
+  errands: GENERIC_IDEA_ART,
 };
 
 export type CategoryCoverAsset = {
@@ -92,6 +94,28 @@ export const CATEGORY_COVER_ASSETS: Record<
     { path: "/category-art/covers/trips-getaways/08.webp", label: "Lakeside cabin" },
     { path: "/category-art/covers/trips-getaways/09.webp", label: "Scenic train" },
   ],
+  social: [
+    { path: "/category-art/covers/music-events/01.webp", label: "Outdoor gathering" },
+    { path: "/category-art/covers/music-events/02.webp", label: "Dance with friends" },
+    { path: "/category-art/covers/music-events/03.webp", label: "Cafe meetup" },
+    { path: "/category-art/covers/music-events/04.webp", label: "Evening out" },
+    { path: "/category-art/covers/music-events/05.webp", label: "Day together" },
+    { path: "/category-art/covers/music-events/06.webp", label: "Night out" },
+    { path: "/category-art/covers/music-events/07.webp", label: "Community gathering" },
+    { path: "/category-art/covers/music-events/08.webp", label: "Group outing" },
+    { path: "/category-art/covers/music-events/09.webp", label: "Friends night" },
+  ],
+  errands: [
+    { path: "/category-art/covers/at-home/01.webp", label: "Home supplies" },
+    { path: "/category-art/covers/at-home/02.webp", label: "Plan the list" },
+    { path: "/category-art/covers/at-home/03.webp", label: "Grocery prep" },
+    { path: "/category-art/covers/at-home/04.webp", label: "Wellness appointment" },
+    { path: "/category-art/covers/at-home/05.webp", label: "Pickup list" },
+    { path: "/category-art/covers/at-home/06.webp", label: "Weekend tasks" },
+    { path: "/category-art/covers/at-home/07.webp", label: "Library run" },
+    { path: "/category-art/covers/at-home/08.webp", label: "Market run" },
+    { path: "/category-art/covers/at-home/09.webp", label: "Around town" },
+  ],
 };
 
 export const CATEGORY_COVERS: Record<Category, readonly string[]> = {
@@ -101,6 +125,8 @@ export const CATEGORY_COVERS: Record<Category, readonly string[]> = {
   culture: CATEGORY_COVER_ASSETS.culture.map(({ path }) => path),
   "at-home": CATEGORY_COVER_ASSETS["at-home"].map(({ path }) => path),
   "trips-getaways": CATEGORY_COVER_ASSETS["trips-getaways"].map(({ path }) => path),
+  social: CATEGORY_COVER_ASSETS.social.map(({ path }) => path),
+  errands: CATEGORY_COVER_ASSETS.errands.map(({ path }) => path),
 };
 
 export function stableVisualHash(value: string) {

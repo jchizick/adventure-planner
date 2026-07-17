@@ -49,15 +49,23 @@ describe("Idea draft persistence", () => {
     expect(ideaHasUnsavedChanges({ ...idea }, idea)).toBe(false);
     expect(ideaHasUnsavedChanges({ ...idea, title: "Changed" }, idea)).toBe(true);
     expect(ideaHasUnsavedChanges({ ...idea, updatedAt: "later" }, idea)).toBe(false);
+    expect(ideaHasUnsavedChanges({ ...idea, optionalLink: "https://example.com" }, idea)).toBe(true);
   });
 
   it("restores a valid same-user, same-space draft", () => {
-    saveIdeaDraft(localStorage, scope, { ...idea, title: "Draft title" }, 1000);
+    saveIdeaDraft(localStorage, scope, { ...idea, title: "Draft title", optionalLink: "example.com" }, 1000);
     expect(loadIdeaDraft(localStorage, scope, idea, 2000)).toEqual({
       status: "restored",
-      idea: { ...idea, title: "Draft title" },
+      idea: { ...idea, title: "Draft title", optionalLink: "example.com" },
     });
     expect(localStorage.getItem(ideaDraftKey({ ...scope, userId: "another" }))).toBeNull();
+  });
+
+  it("isolates duplicate drafts from original edits and ordinary creation", () => {
+    const duplicate = { ...scope, mode: "duplicate" as const };
+    const create = { ...scope, mode: "create" as const, ideaId: undefined };
+    expect(ideaDraftKey(duplicate)).not.toBe(ideaDraftKey(scope));
+    expect(ideaDraftKey(duplicate)).not.toBe(ideaDraftKey(create));
   });
 
   it("expires old drafts and rejects invalid JSON", () => {

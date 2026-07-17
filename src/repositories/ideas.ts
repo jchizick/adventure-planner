@@ -6,6 +6,7 @@ import {
   resolveNewIdeaCoverPreset,
 } from "../idea-covers";
 import type { Idea, IdeaStatus } from "../types";
+import { normalizeIdeaUrl } from "../idea-url";
 
 type DatabaseIdeaStatus = "idea" | "tentative" | "confirmed";
 
@@ -113,6 +114,8 @@ function mapIdea(row: IdeaRow): Idea {
 }
 
 function writableFields(draft: IdeaDraft) {
+  const normalizedUrl = normalizeIdeaUrl(draft.optionalLink);
+  if (normalizedUrl.error) throw new Error(normalizedUrl.error);
   return {
     title: draft.title.trim(),
     description: draft.description.trim() || null,
@@ -120,7 +123,7 @@ function writableFields(draft: IdeaDraft) {
     is_date_night: draft.isDateNight,
     status: uiToDatabaseStatus[draft.status],
     tags: draft.tags,
-    optional_link: draft.optionalLink?.trim() || null,
+    optional_link: normalizedUrl.url ?? null,
     image_url: draft.optionalImage?.trim() || null,
     location: draft.optionalLocation?.trim() || null,
     ...(draft.coverPresetId === null

@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useId,
   type CSSProperties,
   type FormEvent,
 } from "react";
@@ -35,6 +36,8 @@ import {
   ExternalLink,
   Flag,
   Plane,
+  Users,
+  ShoppingBag,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
 import { useIdeas } from "./ideas";
@@ -43,6 +46,7 @@ import {
   countAdvancedIdeaFilters,
   emptyAdvancedIdeaFilters,
   filterIdeas,
+  duplicateIdeaForEditing,
   normalizeCategoryOrNull,
   primaryCategories,
   type AdvancedIdeaFilters,
@@ -50,6 +54,7 @@ import {
   type IdeaFilterStatus,
   type SchedulingFilter,
 } from "./idea-model";
+import { normalizeIdeaUrl, safeIdeaUrl } from "./idea-url";
 import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
 import {
@@ -126,6 +131,8 @@ const catIcon: Record<string, typeof Heart> = {
   culture: Palette,
   "at-home": Home,
   "trips-getaways": Plane,
+  social: Users,
+  errands: ShoppingBag,
 };
 const formatDate = (iso: string) =>
   new Intl.DateTimeFormat("en-CA", {
@@ -579,6 +586,101 @@ function AdvancedFiltersPopover({
   );
 }
 
+type IdeaMenuAction = "edit" | "duplicate";
+
+function IdeaActionsMenu({
+  ideaTitle,
+  onAction,
+}: {
+  ideaTitle: string;
+  onAction: (action: IdeaMenuAction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() =>
+      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus(),
+    );
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const choose = (action: IdeaMenuAction) => {
+    setOpen(false);
+    onAction(action);
+  };
+  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    );
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? (current + 1) % items.length
+          : (current - 1 + items.length) % items.length;
+    items[next].focus();
+  };
+
+  return (
+    <div className="idea-actions" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="idea-actions-trigger"
+        aria-label={`More actions for ${ideaTitle}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          className="adventure-actions-menu idea-actions-menu"
+          id={menuId}
+          role="menu"
+          aria-label={`Actions for ${ideaTitle}`}
+          onKeyDown={onMenuKeyDown}
+        >
+          <button role="menuitem" type="button" onClick={() => choose("edit")}>
+            <Pencil aria-hidden="true" /> Edit idea
+          </button>
+          <button role="menuitem" type="button" onClick={() => choose("duplicate")}>
+            <Copy aria-hidden="true" /> Duplicate idea
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const blankIdea: Idea = {
   id: "",
   title: "",
@@ -590,6 +692,12 @@ const blankIdea: Idea = {
   isDateNight: false,
   createdAt: "2026-07-12",
 };
+type IdeaEditorState = {
+  idea: Idea;
+  mode: IdeaDraftScope["mode"];
+  sourceIdeaId?: string;
+};
+
 export function Ideas() {
   const nav = useNavigate();
   const {
@@ -606,7 +714,7 @@ export function Ideas() {
   const [filter, setFilter] = useState<IdeaCategoryFilter>("all");
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedIdeaFilters>({ ...emptyAdvancedIdeaFilters });
   const [members, setMembers] = useState<SpaceMember[]>([]);
-  const [editing, setEditing] = useState<Idea | null>(null);
+  const [editor, setEditor] = useState<IdeaEditorState | null>(null);
   const [planning, setPlanning] = useState<Idea | null>(null);
   const canDeleteIdeas = Boolean(
     activeSpace &&
@@ -650,7 +758,7 @@ export function Ideas() {
         action={
           <button
             className="icon-button"
-            onClick={() => setEditing({ ...blankIdea })}
+            onClick={() => setEditor({ idea: { ...blankIdea }, mode: "create" })}
             aria-label="Add idea"
           >
             <Plus />
@@ -710,7 +818,7 @@ export function Ideas() {
           <p>Save a date, meal, outing, or little plan you want to remember.</p>
           <button
             className="primary"
-            onClick={() => setEditing({ ...blankIdea })}
+            onClick={() => setEditor({ idea: { ...blankIdea }, mode: "create" })}
           >
             Add your first idea
           </button>
@@ -727,56 +835,76 @@ export function Ideas() {
             <article
               className="idea-card"
               data-idea-id={i.id}
-              tabIndex={0}
-              role="button"
               key={i.id}
-              onClick={() => setEditing(i)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setEditing(i);
-                }
-              }}
             >
-              <IdeaCoverThumbnail
-                idea={i}
-                size={64}
-                className="idea-thumb"
-              />
-              <div className="idea-body">
-                <h3>{i.title}</h3>
-                <p>{i.description}</p>
-                <div>
-                  {i.linkedAdventureId ? (
-                    <span className="planned-chip">
-                      <Check /> Planned
-                    </span>
-                  ) : (
-                    <StatusChip status={i.status} />
-                  )}
-                  <small>Added by {i.addedByUserId ? creatorNames.get(i.addedByUserId) || i.addedBy : i.addedBy}</small>
+              <button
+                type="button"
+                className="idea-card-open"
+                aria-label={`Edit ${i.title}`}
+                onClick={() => setEditor({ idea: i, mode: "edit" })}
+              >
+                <IdeaCoverThumbnail
+                  idea={i}
+                  size={64}
+                  className="idea-thumb"
+                />
+                <div className="idea-body">
+                  <h3>{i.title}</h3>
+                  <p>{i.description}</p>
+                  <div>
+                    {i.linkedAdventureId ? (
+                      <span className="planned-chip">
+                        <Check /> Planned
+                      </span>
+                    ) : (
+                      <StatusChip status={i.status} />
+                    )}
+                    <small>Added by {i.addedByUserId ? creatorNames.get(i.addedByUserId) || i.addedBy : i.addedBy}</small>
+                  </div>
                 </div>
-              </div>
-              <MoreHorizontal />
+              </button>
+              <IdeaActionsMenu
+                ideaTitle={i.title}
+                onAction={(action) => {
+                  if (action === "edit") {
+                    setEditor({ idea: i, mode: "edit" });
+                    return;
+                  }
+                  setEditor({
+                    idea: duplicateIdeaForEditing(
+                      i,
+                      ideas.map((idea) => idea.title),
+                      profile
+                        ? { id: profile.id, displayName: profile.displayName || i.addedBy }
+                        : undefined,
+                    ),
+                    mode: "duplicate",
+                    sourceIdeaId: i.id,
+                  });
+                }}
+              />
             </article>
           ))}
         </div>
       )}
-      <QuickAdd onClick={() => setEditing({ ...blankIdea })} />
+      <QuickAdd onClick={() => setEditor({ idea: { ...blankIdea }, mode: "create" })} />
       <IdeaSheet
-        idea={editing}
+        idea={editor?.idea ?? null}
+        mode={editor?.mode}
         draftScope={profile && activeSpace ? {
           userId: profile.id,
           spaceId: activeSpace.id,
-          mode: editing?.id ? "edit" : "create",
-          ideaId: editing?.id || undefined,
+          mode: editor?.mode ?? "create",
+          ideaId: editor?.mode === "duplicate"
+            ? editor.sourceIdeaId
+            : editor?.idea.id || undefined,
         } : undefined}
-        onClose={() => setEditing(null)}
+        onClose={() => setEditor(null)}
         onSave={saveIdea}
         onDelete={deleteIdea}
         canDelete={canDeleteIdeas}
         onPlan={(idea) => {
-          setEditing(null);
+          setEditor(null);
           setPlanning(idea);
         }}
         onView={(id) => nav(`/adventures/${id}`)}
@@ -803,6 +931,7 @@ export function Ideas() {
 }
 type IdeaSheetProps = {
   idea: Idea | null;
+  mode?: IdeaDraftScope["mode"];
   draftScope?: IdeaDraftScope;
   onClose: () => void;
   onSave: (i: Idea) => Promise<void>;
@@ -814,12 +943,13 @@ type IdeaSheetProps = {
 
 export function IdeaSheet(props: IdeaSheetProps) {
   if (!props.idea) return null;
-  const key = `${props.draftScope?.userId ?? "none"}:${props.draftScope?.spaceId ?? "none"}:${props.draftScope?.mode ?? "none"}:${props.idea.id || "new"}`;
+  const key = `${props.draftScope?.userId ?? "none"}:${props.draftScope?.spaceId ?? "none"}:${props.mode ?? props.draftScope?.mode ?? "none"}:${props.idea.id || "new"}`;
   return <IdeaSheetContent key={key} {...props} idea={props.idea} />;
 }
 
 function IdeaSheetContent({
   idea,
+  mode,
   draftScope,
   onClose,
   onSave,
@@ -855,6 +985,8 @@ function IdeaSheetContent({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [changingCover, setChangingCover] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const urlErrorId = useId();
   const dirty = ideaHasUnsavedChanges(draft, baseline);
 
   const clearStoredDraft = useCallback(() => {
@@ -911,16 +1043,21 @@ function IdeaSheetContent({
   const coverLabel = isIdeaCoverPresetId(d.coverPresetId)
     ? getIdeaCoverPreset(d.coverPresetId).label
     : "Automatic cover";
+  const externalUrl = safeIdeaUrl(d.optionalLink);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (saving) return;
+    const normalizedUrl = normalizeIdeaUrl(d.optionalLink);
+    setUrlError(normalizedUrl.error);
+    if (normalizedUrl.error) return;
+    const normalizedDraft = { ...d, optionalLink: normalizedUrl.url };
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave(d);
+      await onSave(normalizedDraft);
       clearStoredDraft();
-      setBaseline(d);
-      setDraft(d);
+      setBaseline(normalizedDraft);
+      setDraft(normalizedDraft);
       onClose();
     } catch (error) {
       setSaveError(
@@ -961,10 +1098,10 @@ function IdeaSheetContent({
   return (
     <Sheet
       open
-      title={idea.id ? "Edit idea" : "Add an idea"}
+      title={mode === "duplicate" ? "Duplicate idea" : idea.id ? "Edit idea" : "Add an idea"}
       onClose={() => requestExit(onClose)}
     >
-      <form className="idea-form" onSubmit={submit}>
+      <form className="idea-form" onSubmit={submit} noValidate>
         {draftNotice && <p className="form-notice" role="status">{draftNotice}</p>}
         <label>
           Title
@@ -1023,6 +1160,41 @@ function IdeaSheetContent({
             onChange={(e) => setDraft({ ...d, isDateNight: e.target.checked })}
           />
         </label>
+        <label>
+          Website or link
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://example.com"
+            value={d.optionalLink ?? ""}
+            aria-invalid={Boolean(urlError)}
+            aria-describedby={urlError ? urlErrorId : undefined}
+            onBlur={() => setUrlError(normalizeIdeaUrl(d.optionalLink).error)}
+            onChange={(event) => {
+              const optionalLink = event.target.value;
+              setDraft({ ...d, optionalLink });
+              if (urlError) setUrlError(normalizeIdeaUrl(optionalLink).error);
+            }}
+          />
+          {urlError && (
+            <span className="field-error" id={urlErrorId} role="alert">
+              {urlError}
+            </span>
+          )}
+        </label>
+        {externalUrl && (
+          <a
+            className="idea-external-link"
+            href={externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open link for ${d.title || "this idea"} in a new tab`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ExternalLink aria-hidden="true" />
+            <span>Open link</span>
+          </a>
+        )}
         {idea.id && (
           <div className="idea-cover-field">
             <span className="idea-cover-field-label">Cover</span>

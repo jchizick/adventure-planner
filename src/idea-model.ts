@@ -4,9 +4,11 @@ export const primaryCategories = [
   { id: "food-drink", label: "Food & Drink" },
   { id: "music-events", label: "Music & Events" },
   { id: "outdoors", label: "Outdoors" },
-  { id: "culture", label: "Culture" },
+  { id: "culture", label: "Culture & Amusement" },
   { id: "at-home", label: "At Home" },
   { id: "trips-getaways", label: "Trips & Getaways" },
+  { id: "social", label: "Social" },
+  { id: "errands", label: "Errands" },
 ] as const;
 
 export type Category = (typeof primaryCategories)[number]["id"];
@@ -42,10 +44,12 @@ const aliases: Record<string, Category> = {
   festivals: "music-events",
   outdoors: "outdoors",
   culture: "culture",
+  "culture-amusement": "culture",
   dates: "culture",
   "date-night": "culture",
   "at-home": "at-home",
-  errands: "at-home",
+  social: "social",
+  errands: "errands",
   "trips-getaways": "trips-getaways",
   "camping-travel": "trips-getaways",
   travel: "trips-getaways",
@@ -61,6 +65,7 @@ const slugify = (value: string) =>
     .replace(/^-|-$/g, "")
     .replace("food-and-drink", "food-drink")
     .replace("music-and-events", "music-events")
+    .replace("culture-and-amusement", "culture-amusement")
     .replace("trips-and-getaways", "trips-getaways")
     .replace("camping-and-travel", "camping-travel");
 
@@ -84,7 +89,40 @@ export function isLegacyDateNightCategory(value: string) {
 }
 
 export function categoryLabel(category: Category) {
-  return primaryCategories.find((entry) => entry.id === category)?.label ?? "Culture";
+  return primaryCategories.find((entry) => entry.id === category)?.label ?? "Culture & Amusement";
+}
+
+export function duplicateIdeaTitle(title: string, existingTitles: readonly string[] = []) {
+  const trimmed = title.trim();
+  const base = trimmed.replace(/\s+—\s+Copy(?:\s+\d+)?$/i, "") || "Untitled idea";
+  const used = new Set(existingTitles.map((value) => value.trim().toLocaleLowerCase()));
+  let candidate = `${base} — Copy`;
+  let copyNumber = 2;
+  while (used.has(candidate.toLocaleLowerCase())) {
+    candidate = `${base} — Copy ${copyNumber}`;
+    copyNumber += 1;
+  }
+  return candidate;
+}
+
+export function duplicateIdeaForEditing(
+  source: Idea,
+  existingTitles: readonly string[],
+  creator?: { id: string; displayName: string },
+  now = new Date().toISOString(),
+): Idea {
+  return {
+    ...source,
+    id: "",
+    title: duplicateIdeaTitle(source.title, existingTitles),
+    status: "Idea",
+    addedBy: creator?.displayName ?? source.addedBy,
+    addedByUserId: creator?.id,
+    createdAt: now,
+    updatedAt: undefined,
+    scheduledFor: undefined,
+    linkedAdventureId: undefined,
+  };
 }
 
 export function effectiveIdeaStatus(idea: Idea): IdeaFilterStatus {
@@ -114,7 +152,7 @@ export function filterIdeas(
   return ideas.filter((idea) => {
     const matchesCategory = categoryFilter === "all" ||
       (categoryFilter === "date-night" ? idea.isDateNight : idea.category === categoryFilter);
-    const searchable = [idea.title, idea.description, idea.optionalLocation, ...idea.tags]
+    const searchable = [idea.title, idea.description, idea.optionalLink, idea.optionalLocation, ...idea.tags]
       .filter(Boolean).join(" ").toLocaleLowerCase();
     return matchesCategory &&
       (!normalizedQuery || searchable.includes(normalizedQuery)) &&

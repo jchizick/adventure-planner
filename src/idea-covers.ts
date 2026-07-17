@@ -1,4 +1,5 @@
 import {
+  CATEGORY_COVER_ASSETS,
   CATEGORY_COVERS,
   GENERIC_ADVENTURE_COVER,
   stableVisualHash,
@@ -425,6 +426,62 @@ export const IDEA_COVER_PRESETS = [
     keywords: ["scenic train", "rail journey", "train trip"],
   },
   {
+    id: "social-community",
+    category: "social",
+    label: "Outdoor gathering",
+    path: CATEGORY_COVERS.social[0],
+    keywords: ["friends", "party", "community", "gathering"],
+  },
+  {
+    id: "social-games",
+    category: "social",
+    label: "Dance with friends",
+    path: CATEGORY_COVERS.social[1],
+    keywords: ["games", "game night", "group"],
+  },
+  {
+    id: "social-market",
+    category: "social",
+    label: "Cafe meetup",
+    path: CATEGORY_COVERS.social[2],
+    keywords: ["meet", "market", "hangout"],
+  },
+  {
+    id: "errands-list",
+    category: "errands",
+    label: "Home supplies",
+    path: CATEGORY_COVERS.errands[0],
+    keywords: ["list", "organize", "appointment"],
+  },
+  {
+    id: "errands-market",
+    category: "errands",
+    label: "Plan the list",
+    path: CATEGORY_COVERS.errands[1],
+    keywords: ["groceries", "shopping", "market"],
+  },
+  {
+    id: "errands-town",
+    category: "errands",
+    label: "Grocery prep",
+    path: CATEGORY_COVERS.errands[2],
+    keywords: ["pickup", "drop off", "around town"],
+  },
+  ...([3, 4, 5, 6, 7, 8] as const).map((index) => ({
+    id: `social-option-${index + 1}`,
+    category: "social" as const,
+    label: CATEGORY_COVER_ASSETS.social[index].label,
+    path: CATEGORY_COVERS.social[index],
+    keywords: [] as const,
+  })),
+  ...([3, 4, 5, 6, 7, 8] as const).map((index) => ({
+    id: `errands-option-${index + 1}`,
+    category: "errands" as const,
+    label: CATEGORY_COVER_ASSETS.errands[index].label,
+    path: CATEGORY_COVERS.errands[index],
+    keywords: [] as const,
+  })),
+  {
     id: "general-default",
     category: "general",
     label: "Garden estate",
@@ -454,6 +511,8 @@ export const IDEA_COVER_PRESETS_BY_CATEGORY: Record<
   culture: presetsFor("culture"),
   "at-home": presetsFor("at-home"),
   "trips-getaways": presetsFor("trips-getaways"),
+  social: presetsFor("social"),
+  errands: presetsFor("errands"),
 };
 
 const LEGACY_PRESET_IDS_BY_CATEGORY: Record<Category, readonly IdeaCoverPresetId[]> = {
@@ -463,6 +522,8 @@ const LEGACY_PRESET_IDS_BY_CATEGORY: Record<Category, readonly IdeaCoverPresetId
   culture: ["culture-estate", "culture-sculpture", "culture-gallery"],
   "at-home": ["home-cozy-night", "home-journal", "home-cooking"],
   "trips-getaways": ["trip-countryside", "trip-lake-cabin", "trip-old-town"],
+  social: ["social-community", "social-games", "social-market"],
+  errands: ["errands-list", "errands-market", "errands-town"],
 };
 
 const LEGACY_PRESETS_BY_CATEGORY: Record<Category, readonly IdeaCoverPreset[]> = {
@@ -472,6 +533,8 @@ const LEGACY_PRESETS_BY_CATEGORY: Record<Category, readonly IdeaCoverPreset[]> =
   culture: LEGACY_PRESET_IDS_BY_CATEGORY.culture.map(getIdeaCoverPreset),
   "at-home": LEGACY_PRESET_IDS_BY_CATEGORY["at-home"].map(getIdeaCoverPreset),
   "trips-getaways": LEGACY_PRESET_IDS_BY_CATEGORY["trips-getaways"].map(getIdeaCoverPreset),
+  social: LEGACY_PRESET_IDS_BY_CATEGORY.social.map(getIdeaCoverPreset),
+  errands: LEGACY_PRESET_IDS_BY_CATEGORY.errands.map(getIdeaCoverPreset),
 };
 
 export function isIdeaCoverPresetId(
