@@ -49,13 +49,13 @@ describe("app icon package", () => {
     expect(indexSource).toContain('name="theme-color" content="#f7f3ed"');
     expect(indexSource).toContain('name="apple-mobile-web-app-capable" content="yes"');
     expect(indexSource).toContain('name="apple-mobile-web-app-status-bar-style" content="default"');
-    expect(indexSource).toContain('name="apple-mobile-web-app-title" content="Our Adventures"');
+    expect(indexSource).toContain('name="apple-mobile-web-app-title" content="Adventures"');
   });
 
   it("configures the standalone manifest and all Android icon purposes", () => {
     expect(JSON.parse(manifestSource)).toEqual(expect.objectContaining({
       name: "Our Adventures",
-      short_name: "Our Adventures",
+      short_name: "Adventures",
       start_url: "/",
       display: "standalone",
       theme_color: "#f7f3ed",
