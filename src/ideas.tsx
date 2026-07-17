@@ -17,7 +17,8 @@ import {
   updateIdeaStatus,
   type IdeaDraft,
 } from "./repositories/ideas";
-import type { Idea, IdeaStatus } from "./types";
+import type { Adventure, Idea, IdeaStatus } from "./types";
+import { reconcilePromotedIdea } from "./promotion-state";
 import { useWorkspace } from "./workspace";
 
 type IdeasState = {
@@ -28,6 +29,7 @@ type IdeasState = {
   saveIdea: (idea: Idea) => Promise<void>;
   setIdeaStatus: (id: string, status: IdeaStatus) => Promise<void>;
   deleteIdea: (id: string) => Promise<void>;
+  markIdeaPromoted: (id: string, adventure: Adventure) => void;
 };
 
 const IdeasContext = createContext<IdeasState | null>(null);
@@ -119,6 +121,9 @@ export function IdeasProvider({ children }: { children: ReactNode }) {
           throw new Error("Open your shared space and try again.");
         await deleteIdeaRecord(activeSpace.id, id);
         setIdeas((current) => current.filter((item) => item.id !== id));
+      },
+      markIdeaPromoted: (id, adventure) => {
+        setIdeas((current) => reconcilePromotedIdea(current, id, adventure));
       },
     }),
     [activeSpace, error, ideas, load, loading, user],

@@ -327,11 +327,7 @@ export async function promoteIdea(
     p_cover_image_url: plan.coverImage?.trim() || null,
   });
   if (error) throw repositoryError("promote", error);
-  const row = data as unknown as { id: string };
-  const loaded = await loadAdventure(spaceId, row.id);
-  if (!loaded)
-    throw new Error("The Adventure was created but could not be opened.");
-  return loaded;
+  return mapAdventure(data as unknown as AdventureRow);
 }
 
 export async function updateAdventureNotes(

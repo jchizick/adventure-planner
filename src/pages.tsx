@@ -46,6 +46,8 @@ import {
   countAdvancedIdeaFilters,
   emptyAdvancedIdeaFilters,
   filterIdeas,
+  isActiveIdea,
+  selectCalendarProposalIdeas,
   duplicateIdeaForEditing,
   normalizeCategoryOrNull,
   primaryCategories,
@@ -54,6 +56,7 @@ import {
   type IdeaFilterStatus,
   type SchedulingFilter,
 } from "./idea-model";
+import { promoteAndReconcileIdea } from "./promotion-state";
 import { normalizeIdeaUrl, safeIdeaUrl } from "./idea-url";
 import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
@@ -709,6 +712,7 @@ export function Ideas() {
     retry,
     saveIdea,
     deleteIdea,
+    markIdeaPromoted,
   } = useIdeas();
   const { activeSpace, memberships, profile } = useWorkspace();
   const { promoteIdeaToAdventure } = useAdventureStore();
@@ -732,13 +736,14 @@ export function Ideas() {
     return () => { active = false; };
   }, [activeSpace]);
 
+  const activeIdeas = useMemo(() => ideas.filter(isActiveIdea), [ideas]);
   const counts = useMemo(
-    () => ideas.reduce<Record<string, number>>((result, idea) => {
+    () => activeIdeas.reduce<Record<string, number>>((result, idea) => {
       result[idea.category] = (result[idea.category] || 0) + 1;
       if (idea.isDateNight) result["date-night"] = (result["date-night"] || 0) + 1;
       return result;
-    }, { all: ideas.length }),
-    [ideas],
+    }, { all: activeIdeas.length }),
+    [activeIdeas],
   );
   const shown = useMemo(
     () => filterIdeas(ideas, filter, query, advancedFilters),
@@ -927,12 +932,16 @@ export function Ideas() {
           idea={planning}
           onClose={() => setPlanning(null)}
           onSubmit={async (plan) => {
-            const created = await promoteIdeaToAdventure(planning.id, {
-              ...plan,
-              category: planning.category,
-              coverImage: planning.optionalImage,
+            const created = await promoteAndReconcileIdea({
+              ideaId: planning.id,
+              plan: {
+                ...plan,
+                category: planning.category,
+                coverImage: planning.optionalImage,
+              },
+              promote: promoteIdeaToAdventure,
+              reconcile: markIdeaPromoted,
             });
-            await retry();
             setPlanning(null);
             nav(`/adventures/${created.id}`);
           }}
@@ -1644,6 +1653,7 @@ export function Calendar() {
     retry: retryIdeas,
     loading: ideasLoading,
     error: ideasError,
+    markIdeaPromoted,
   } = useIdeas();
   const { activeSpace, memberships, profile } = useWorkspace();
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
@@ -1658,7 +1668,7 @@ export function Calendar() {
   const monthDays = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth]);
   const allCalendarEvents = useMemo(() => expandCalendarEventRanges([
     ...calendarEvents,
-    ...ideas.filter((idea) => idea.proposedStartDate && !idea.linkedAdventureId).map((idea) => ({
+    ...selectCalendarProposalIdeas(ideas).map((idea) => ({
       id: `proposal-${idea.id}`,
       title: idea.title,
       subtitle: "Proposed idea",
@@ -1846,8 +1856,12 @@ export function Calendar() {
         idea={planningIdea}
         onClose={() => setPlanningIdea(null)}
         onSubmit={async (plan) => {
-          const created = await promoteIdeaToAdventure(planningIdea.id, plan);
-          await retryIdeas();
+          const created = await promoteAndReconcileIdea({
+            ideaId: planningIdea.id,
+            plan,
+            promote: promoteIdeaToAdventure,
+            reconcile: markIdeaPromoted,
+          });
           setPlanningIdea(null);
           nav(`/adventures/${created.id}`);
         }}

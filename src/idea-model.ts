@@ -133,6 +133,14 @@ export function effectiveIdeaStatus(idea: Idea): IdeaFilterStatus {
   return idea.linkedAdventureId ? "Planned" : idea.status;
 }
 
+export function isActiveIdea(idea: Idea) {
+  return !idea.linkedAdventureId;
+}
+
+export function selectCalendarProposalIdeas(ideas: Idea[]) {
+  return ideas.filter((idea) => isActiveIdea(idea) && Boolean(idea.proposedStartDate));
+}
+
 export function ideaScheduling(
   idea: Idea,
   today = new Date().toISOString().slice(0, 10),
@@ -158,9 +166,13 @@ export function filterIdeas(
       (categoryFilter === "date-night" ? idea.isDateNight : idea.category === categoryFilter);
     const searchable = [idea.title, idea.description, idea.optionalLink, idea.optionalLocation, ...idea.tags]
       .filter(Boolean).join(" ").toLocaleLowerCase();
+    const effectiveStatus = effectiveIdeaStatus(idea);
+    const matchesStatus = advanced.statuses.length
+      ? advanced.statuses.includes(effectiveStatus)
+      : effectiveStatus !== "Planned";
     return matchesCategory &&
       (!normalizedQuery || searchable.includes(normalizedQuery)) &&
-      (!advanced.statuses.length || advanced.statuses.includes(effectiveIdeaStatus(idea))) &&
+      matchesStatus &&
       (!advanced.addedByUserIds.length ||
         (idea.addedByUserId != null && advanced.addedByUserIds.includes(idea.addedByUserId))) &&
       (!advanced.scheduling.length || advanced.scheduling.includes(ideaScheduling(idea))) &&

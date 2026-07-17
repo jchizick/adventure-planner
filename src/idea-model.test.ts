@@ -45,9 +45,18 @@ describe("Idea categories", () => {
   });
 
   it("filters Social and Errands independently", () => {
-    const errands = { ...source, id: "idea-2", title: "Pick up parcel", category: "errands" as const };
-    expect(filterIdeas([source, errands], "social", "", emptyAdvancedIdeaFilters)).toEqual([source]);
+    const social = { ...source, linkedAdventureId: undefined };
+    const errands = { ...social, id: "idea-2", title: "Pick up parcel", category: "errands" as const };
+    expect(filterIdeas([social, errands], "social", "", emptyAdvancedIdeaFilters)).toEqual([social]);
     expect(filterIdeas([source, errands], "errands", "", emptyAdvancedIdeaFilters)).toEqual([errands]);
+  });
+
+  it("hides planned Ideas by default but exposes them through the existing Planned filter", () => {
+    expect(filterIdeas([source], "all", "", emptyAdvancedIdeaFilters)).toEqual([]);
+    expect(filterIdeas([source], "all", "", {
+      ...emptyAdvancedIdeaFilters,
+      statuses: ["Planned"],
+    })).toEqual([source]);
   });
 });
 

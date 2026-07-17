@@ -50,6 +50,7 @@ import type {
   AdventureStop,
   CalendarEvent,
 } from "./types";
+import { upsertPromotedAdventure } from "./promotion-state";
 import { useWorkspace } from "./workspace";
 
 type Store = {
@@ -256,7 +257,7 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
         creatingRef.current = true;
         try {
           const created = await promoteIdeaRow(activeSpace.id, ideaId, plan);
-          setAdventures((current) => [...current, created]);
+          setAdventures((current) => upsertPromotedAdventure(current, created));
           setCalendarTargetDate(created.date);
           return created;
         } finally {
