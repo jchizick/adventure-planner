@@ -2698,6 +2698,666 @@ main {
 .access-success .secondary-button {
   margin-top: 5px;
 }
+.welcome-page {
+  padding: 16px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 9% 8%, rgba(255, 255, 255, 0.92), transparent 28%),
+    radial-gradient(circle at 88% 84%, rgba(221, 193, 174, 0.3), transparent 32%),
+    linear-gradient(145deg, #f8f3ec 0%, #f1e8dd 100%);
+}
+.welcome-shell {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 1720px);
+  height: calc(100svh - 32px);
+  min-height: 680px;
+  overflow: hidden;
+  border: 1px solid rgba(201, 144, 103, 0.28);
+  border-radius: 38px;
+  background:
+    radial-gradient(circle at 13% 92%, rgba(232, 97, 87, 0.055), transparent 28%),
+    linear-gradient(115deg, rgba(255, 253, 249, 0.66), rgba(247, 239, 229, 0.86));
+  box-shadow: 0 26px 80px rgba(78, 56, 37, 0.11);
+}
+.welcome-shell::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: radial-gradient(rgba(92, 68, 47, 0.18) 0.55px, transparent 0.55px);
+  background-size: 7px 7px;
+  mask-image: linear-gradient(90deg, #000, transparent 58%);
+}
+.welcome-header {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 42px 12px 52px;
+}
+.welcome-brand-logo {
+  display: block;
+  width: 190px;
+  height: 72px;
+  object-fit: contain;
+  object-position: left center;
+}
+.welcome-learn-more {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px 0 18px;
+  border: 1px solid rgba(91, 70, 52, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.68);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.welcome-learn-more svg {
+  width: 15px;
+  height: 15px;
+}
+.welcome-learn-more:hover {
+  border-color: rgba(232, 97, 87, 0.48);
+  background: rgba(255, 253, 249, 0.96);
+  transform: translateY(-1px);
+}
+.welcome-learn-more:focus-visible,
+.welcome-workflow:focus-visible,
+.welcome-mobile-details summary:focus-visible {
+  outline: 3px solid rgba(232, 97, 87, 0.28);
+  outline-offset: 3px;
+}
+.welcome-layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 54%) minmax(0, 46%);
+}
+.welcome-intro {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: clamp(112px, 15.5svh, 158px) clamp(46px, 4.8vw, 78px) 42px;
+}
+.welcome-intro-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 690px;
+}
+.welcome-eyebrow {
+  margin: 0 0 13px;
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+.welcome-intro h1 {
+  max-width: 670px;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(52px, 5.05vw, 78px);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.048em;
+  text-wrap: balance;
+}
+.welcome-description {
+  max-width: 670px;
+  margin: 25px 0 0;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.welcome-workflow {
+  position: relative;
+  z-index: 1;
+  margin-top: 48px;
+  border-radius: 18px;
+}
+.welcome-workflow-list {
+  --welcome-workflow-icon-half: 29px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome-workflow-stage {
+  position: relative;
+  min-width: 0;
+}
+.welcome-workflow-content {
+  width: min(100%, 108px);
+}
+.welcome-workflow-icon {
+  width: 58px;
+  height: 58px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 17px 17px 20px 15px;
+  transform: rotate(-2deg);
+}
+.welcome-workflow-icon svg {
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.9;
+}
+.welcome-workflow-stage.ideas .welcome-workflow-icon {
+  color: #c98a12;
+  background: rgba(232, 173, 74, 0.16);
+}
+.welcome-workflow-stage.adventure .welcome-workflow-icon {
+  color: var(--coral);
+  background: rgba(232, 97, 87, 0.13);
+}
+.welcome-workflow-stage.itinerary .welcome-workflow-icon {
+  color: #648657;
+  background: rgba(142, 170, 130, 0.17);
+}
+.welcome-workflow-stage.memories .welcome-workflow-icon {
+  color: #df6570;
+  background: rgba(223, 101, 112, 0.13);
+}
+.welcome-workflow-list h3 {
+  margin: 13px 0 6px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.welcome-workflow-list p {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.welcome-workflow-connector {
+  position: absolute;
+  top: 15.5px;
+  min-width: 0;
+  transform: translateX(-50%);
+  list-style: none;
+}
+.welcome-workflow-connector:nth-child(2) {
+  left: calc(12.5% + var(--welcome-workflow-icon-half));
+}
+.welcome-workflow-connector:nth-child(4) {
+  left: calc(37.5% + var(--welcome-workflow-icon-half));
+}
+.welcome-workflow-connector:nth-child(6) {
+  left: calc(62.5% + var(--welcome-workflow-icon-half));
+}
+.welcome-workflow-connector span {
+  color: var(--coral);
+  display: grid;
+  place-items: center;
+}
+.welcome-workflow-connector svg {
+  width: 27px;
+  height: 27px;
+  stroke-width: 2;
+}
+.welcome-closing {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 660px);
+  max-width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 82px;
+  padding: 12px 20px;
+  border: 1px solid rgba(115, 87, 64, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 253, 249, 0.5);
+  color: var(--text-secondary);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.35;
+}
+.welcome-closing svg {
+  flex: 0 0 auto;
+  width: 19px;
+  color: var(--coral);
+}
+.welcome-botanical {
+  position: absolute;
+  left: 14px;
+  bottom: -8px;
+  width: 164px;
+  color: #839a75;
+  opacity: 0.27;
+  pointer-events: none;
+}
+.welcome-botanical path {
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.welcome-sign-in-area {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 92px clamp(32px, 3.8vw, 62px) 38px;
+  border-left: 0;
+  background: rgba(244, 235, 224, 0.48);
+}
+.welcome-sign-in-card.access-card {
+  width: min(100%, 568px);
+  min-height: 690px;
+  padding: clamp(42px, 3.8vw, 56px);
+  border-color: rgba(105, 76, 53, 0.12);
+  border-radius: 32px;
+  background: rgba(255, 254, 251, 0.97);
+  box-shadow: 0 25px 65px rgba(73, 51, 34, 0.14);
+}
+.welcome-card-logo {
+  width: 148px;
+  height: 54px;
+}
+.welcome-sign-in-card .access-copy {
+  margin: 29px 0 31px;
+}
+.welcome-sign-in-card .access-copy h2 {
+  margin: 9px 0 16px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(36px, 3.05vw, 48px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+}
+.welcome-sign-in-card .access-copy > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.62;
+}
+.welcome-sign-in-card .access-copy .welcome-invitation-note {
+  margin-top: 10px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(232, 97, 87, 0.5);
+  color: #76534d;
+  font-weight: 600;
+}
+.welcome-sign-in-card .access-form {
+  gap: 11px;
+}
+.welcome-sign-in-card .access-form label {
+  font-size: 13px;
+}
+.welcome-sign-in-card .access-form input {
+  min-height: 64px;
+  border-color: rgba(84, 65, 50, 0.19);
+  border-radius: 15px;
+  padding: 0 16px;
+  outline: none;
+}
+.welcome-sign-in-card .access-form input:focus {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 3px rgba(232, 97, 87, 0.13);
+}
+.welcome-sign-in-help {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.welcome-sign-in-card .access-primary {
+  min-height: 62px;
+  margin-top: 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eb6c61, var(--coral));
+}
+.welcome-sign-in-card .access-primary span {
+  min-width: 108px;
+  text-align: center;
+}
+.welcome-sign-in-card .access-footnote {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 29px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.welcome-sign-in-card .access-footnote svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+}
+.welcome-sign-in-card .access-footnote span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.welcome-mobile-details {
+  display: none;
+}
+@media (min-width: 1101px) and (max-height: 840px) {
+  .welcome-intro {
+    padding-top: 80px;
+    padding-bottom: 26px;
+  }
+  .welcome-intro h1 {
+    font-size: clamp(47px, 4.3vw, 64px);
+  }
+  .welcome-description {
+    margin-top: 18px;
+    font-size: 14px;
+  }
+  .welcome-workflow {
+    margin-top: 27px;
+  }
+  .welcome-workflow-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .welcome-workflow-list {
+    --welcome-workflow-icon-half: 22px;
+  }
+  .welcome-workflow-icon svg {
+    width: 23px;
+    height: 23px;
+  }
+  .welcome-workflow-list h3 {
+    margin-top: 9px;
+  }
+  .welcome-workflow-list p {
+    font-size: 10px;
+  }
+  .welcome-workflow-connector {
+    top: 8.5px;
+  }
+  .welcome-closing {
+    min-height: 50px;
+    margin-top: 24px;
+  }
+  .welcome-sign-in-area {
+    padding-top: 78px;
+    padding-bottom: 24px;
+  }
+  .welcome-sign-in-card.access-card {
+    min-height: 0;
+    padding: 38px 44px;
+  }
+  .welcome-card-logo {
+    height: 46px;
+  }
+  .welcome-sign-in-card .access-copy {
+    margin: 21px 0 22px;
+  }
+  .welcome-sign-in-card .access-copy h2 {
+    margin-bottom: 11px;
+    font-size: 37px;
+  }
+  .welcome-sign-in-card .access-copy > p:not(.eyebrow) {
+    font-size: 13px;
+  }
+  .welcome-sign-in-card .access-form {
+    gap: 8px;
+  }
+  .welcome-sign-in-card .access-form input {
+    min-height: 54px;
+  }
+  .welcome-sign-in-card .access-primary {
+    min-height: 56px;
+    margin-top: 9px;
+  }
+  .welcome-sign-in-card .access-footnote {
+    margin-top: 20px;
+    font-size: 11px;
+  }
+}
+@media (max-width: 1100px) {
+  .welcome-page {
+    display: block;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom));
+  }
+  .welcome-shell {
+    height: auto;
+    min-height: calc(100dvh - 30px);
+    overflow: visible;
+    border-radius: 28px;
+  }
+  .welcome-header {
+    position: static;
+    height: 72px;
+    padding: 10px 20px 2px;
+  }
+  .welcome-header .welcome-brand-logo {
+    width: 136px;
+    height: 55px;
+  }
+  .welcome-learn-more {
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 11px;
+  }
+  .welcome-learn-more svg {
+    width: 14px;
+    height: 14px;
+  }
+  .welcome-layout {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .welcome-intro {
+    display: block;
+    padding: 19px clamp(20px, 6vw, 52px) 18px;
+  }
+  .welcome-intro h1 {
+    font-size: clamp(38px, 8vw, 58px);
+    line-height: 0.99;
+  }
+  .welcome-description {
+    max-width: 660px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .welcome-workflow,
+  .welcome-closing,
+  .welcome-botanical {
+    display: none;
+  }
+  .welcome-sign-in-area {
+    padding: 10px clamp(14px, 5vw, 44px) 22px;
+    border-left: 0;
+    background: transparent;
+  }
+  .welcome-sign-in-card.access-card {
+    width: min(100%, 620px);
+    min-height: 0;
+    padding: clamp(25px, 6vw, 42px);
+    border-radius: 26px;
+  }
+  .welcome-card-logo {
+    display: none;
+  }
+  .welcome-sign-in-card .access-copy {
+    margin: 0 0 24px;
+  }
+  .welcome-sign-in-card .access-copy h2 {
+    font-size: clamp(29px, 6.5vw, 38px);
+  }
+  .welcome-heading-break {
+    display: none;
+  }
+  .welcome-sign-in-card .access-copy > p:not(.eyebrow) {
+    font-size: 13px;
+  }
+  .welcome-sign-in-card .access-form {
+    gap: 9px;
+  }
+  .welcome-sign-in-card .access-form label {
+    font-size: 12px;
+  }
+  .welcome-sign-in-card .access-form input {
+    min-height: 54px;
+  }
+  .welcome-sign-in-card .access-primary {
+    min-height: 56px;
+    margin-top: 10px;
+  }
+  .welcome-sign-in-card .access-footnote {
+    margin-top: 23px;
+    font-size: 11px;
+  }
+  .welcome-mobile-details {
+    width: min(calc(100% - 40px), 620px);
+    display: block;
+    margin: 0 auto 24px;
+    border-top: 1px solid rgba(105, 80, 59, 0.14);
+    color: var(--text-secondary);
+  }
+  .welcome-mobile-details summary {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+  .welcome-mobile-details summary::-webkit-details-marker {
+    display: none;
+  }
+  .welcome-mobile-details summary::after {
+    content: "+";
+    color: var(--coral);
+    font-size: 20px;
+    font-weight: 400;
+  }
+  .welcome-mobile-details[open] summary::after {
+    content: "−";
+  }
+  .welcome-mobile-details ol {
+    display: grid;
+    gap: 13px;
+    margin: 0;
+    padding: 3px 0 6px;
+    list-style: none;
+  }
+  .welcome-mobile-details li {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .welcome-mobile-details li > svg {
+    flex: 0 0 auto;
+    width: 18px;
+    color: var(--coral);
+  }
+  .welcome-mobile-details li span {
+    display: grid;
+  }
+  .welcome-mobile-details strong {
+    color: var(--text-primary);
+  }
+}
+@media (max-width: 430px) {
+  .welcome-page {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .welcome-shell {
+    border-radius: 24px;
+  }
+  .welcome-header {
+    height: 64px;
+    padding: 7px 16px 0;
+  }
+  .welcome-header .welcome-brand-logo {
+    width: 123px;
+    height: 50px;
+  }
+  .welcome-intro {
+    padding: 14px 17px 15px;
+  }
+  .welcome-eyebrow {
+    margin-bottom: 9px;
+    font-size: 10px;
+  }
+  .welcome-intro h1 {
+    font-size: clamp(34px, 10.5vw, 45px);
+  }
+  .welcome-description {
+    font-size: 12px;
+  }
+  .welcome-sign-in-area {
+    padding: 7px 9px 18px;
+  }
+  .welcome-sign-in-card.access-card {
+    padding: 24px 20px;
+    border-radius: 22px;
+  }
+  .welcome-sign-in-card .access-copy {
+    margin-bottom: 20px;
+  }
+  .welcome-sign-in-card .access-copy h2 {
+    font-size: 29px;
+  }
+  .welcome-sign-in-help {
+    display: grid;
+    gap: 1px;
+  }
+  .welcome-mobile-details {
+    width: calc(100% - 34px);
+  }
+}
+@media (min-width: 1101px) and (max-width: 1300px) {
+  .welcome-workflow-connector svg {
+    width: 23px;
+    height: 23px;
+  }
+  .welcome-workflow-connector {
+    top: 17.5px;
+  }
+}
+@media (min-width: 1101px) and (max-width: 1300px) and (max-height: 840px) {
+  .welcome-workflow-connector {
+    top: 10.5px;
+  }
+}
+@media (max-width: 370px) {
+  .welcome-header .welcome-brand-logo {
+    width: 112px;
+    height: 46px;
+  }
+  .welcome-sign-in-card .access-copy h2 {
+    font-size: 27px;
+    line-height: 1.02;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-learn-more {
+    transition: none;
+  }
+  .welcome-learn-more:hover {
+    transform: none;
+  }
+}
 .access-loading,
 .access-center {
   text-align: center;

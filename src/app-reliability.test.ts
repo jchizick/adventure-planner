@@ -24,8 +24,13 @@ describe("mobile and session reliability configuration", () => {
     expect(workspace).toContain("}, [userId]);");
   });
 
-  it("explains cross-device member sign-in", () => {
-    expect(read("./auth-ui.tsx")).toContain("Already joined on another device?");
-    expect(read("./auth-ui.tsx")).toContain("No second invitation is needed.");
+  it("explains email-bound shared-space and invitation access", () => {
+    const authUi = read("./auth-ui.tsx");
+    expect(authUi).toContain(
+      "Invitations and shared spaces are tied to your email.",
+    );
+    expect(authUi).toContain(
+      "Use the email address that received your invitation.",
+    );
   });
 });
