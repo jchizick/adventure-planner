@@ -144,6 +144,22 @@ If the public key is absent, invalid, over quota, or rejected by its origin
 rules, the Adventure detail page keeps the itinerary list usable and shows a
 recoverable map fallback instead of crashing.
 
+## Calendar exports
+
+Dated Adventures can be copied to Google Calendar or downloaded as an `.ics`
+file from the Adventure detail page. These are one-way exports: they do not use
+Google OAuth or the Calendar API, and later Adventure changes do not update an
+already exported event.
+
+Untimed Adventures export as all-day events with an exclusive end date. Timed
+events are converted from the Adventure's IANA timezone to UTC; when the
+Adventure has no timezone, the browser/application timezone is used. A timed
+Adventure with only a start time lasts 60 minutes. When a timed Adventure has
+an end date but no end time, its exported end is 23:59:59 on the final day,
+matching the app's existing effective-end behavior. The `.ics` generator uses
+UTC timestamps for timed events, `VALUE=DATE` for all-day events, CRLF endings,
+RFC 5545 text escaping, and UTF-8-aware 75-octet line folding.
+
 ## Home-screen installation
 
 The web app manifest uses `/` as both its canonical `start_url` and scope, so a

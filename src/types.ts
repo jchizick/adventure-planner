@@ -141,6 +141,7 @@ export interface Adventure {
   checklist: ChecklistItem[];
   addedBy: string;
   updatedBy: string;
+  updatedAt?: string;
   completed: boolean;
   completedAt?: string;
   favorite: boolean;

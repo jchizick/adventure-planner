@@ -65,6 +65,8 @@ function renderToday() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-07-19T12:00:00-04:00"));
   mocks.useWorkspace.mockReset().mockReturnValue({
     activeSpace: { id: "space-id", name: "Shared plans" },
   });
@@ -82,7 +84,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("Today recent Ideas", () => {
   it("retains the shared-space eyebrow for the desktop Today header", () => {

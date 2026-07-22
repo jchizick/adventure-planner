@@ -124,6 +124,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     checklist: [],
     addedBy: profileName(row.creator_profile),
     updatedBy: profileName(row.updater_profile ?? row.creator_profile),
+    updatedAt: row.updated_at,
     completed: row.status === "completed" || row.completed_at !== null,
     completedAt: row.completed_at ?? undefined,
     favorite: row.is_favorite,

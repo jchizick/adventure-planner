@@ -109,6 +109,7 @@ import { WeatherIndicator } from "./weather";
 import { LocationSearchField } from "./location-search-field";
 import { initialLocationDraft } from "./location-field-state";
 import { AdventureStopsMapCard } from "./adventure-stops-map-card";
+import { AdventureCalendarExport } from "./adventure-calendar-export";
 import {
   buildStopMapCameraTarget,
   getItineraryStopColor,
@@ -2775,6 +2776,7 @@ export function AdventureDetail() {
             {a.locationWeatherWarning}
           </p>
         )}
+        <AdventureCalendarExport adventure={a} />
         <nav className="tabs">
           {["Itinerary", "Notes", "Links", "Checklist"].map((t) => (
             <button

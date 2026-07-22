@@ -1620,6 +1620,71 @@ main {
   padding: 2px 4px 4px 2px;
   overflow-y: auto;
 }
+.calendar-export {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-soft, #f8f4ef);
+}
+.calendar-export h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.calendar-export p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.calendar-export-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.calendar-export-actions a,
+.calendar-export-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.calendar-export-actions a:hover,
+.calendar-export-actions button:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.calendar-export-actions a:focus-visible,
+.calendar-export-actions button:focus-visible {
+  outline: 3px solid rgba(232, 97, 87, 0.2);
+  outline-offset: 2px;
+}
+.calendar-export-actions svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+@media (max-width: 370px) {
+  .calendar-export-actions {
+    grid-template-columns: 1fr;
+  }
+}
 .agenda-row.proposal {
   border-style: dashed;
   border-left-color: var(--lav);

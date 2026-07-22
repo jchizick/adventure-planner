@@ -23,7 +23,7 @@ function idea(overrides: Partial<Idea> = {}): Idea {
 describe("Idea cover workflow regressions", () => {
   it("does not affect search, status, or scheduling filters", () => {
     const ideas = [
-      idea({ scheduledFor: "2026-07-20" }),
+      idea({ scheduledFor: "2999-07-20" }),
       idea({ id: "other", title: "Dinner", category: "food-drink" }),
     ];
     const filters = {
