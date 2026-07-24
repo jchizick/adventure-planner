@@ -13,6 +13,7 @@ export function IdeaCoverThumbnail({
     | "category"
     | "title"
     | "description"
+    | "tags"
     | "isDateNight"
     | "coverPresetId"
     | "optionalImage"

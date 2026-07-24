@@ -1,6 +1,11 @@
+import {
+  isLegacyDateNightCategory,
+  normalizeCategory,
+} from "./idea-model";
+import { normalizeTagSlugs } from "./tag-model";
 import type { Idea } from "./types";
 
-const DRAFT_VERSION = 1;
+const DRAFT_VERSION = 2;
 export const IDEA_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type IdeaDraftScope = {
@@ -16,8 +21,6 @@ type EditableIdea = Pick<
   | "description"
   | "category"
   | "status"
-  | "tags"
-  | "isDateNight"
   | "optionalLink"
   | "optionalImage"
   | "optionalLocation"
@@ -27,13 +30,28 @@ type EditableIdea = Pick<
   | "proposedStartTime"
   | "proposedEndDate"
   | "proposedEndTime"
-> & { pendingCoverFileName?: string };
+> & {
+  tags: string[];
+  pendingCoverFileName?: string;
+};
 
 type StoredIdeaDraft = {
-  version: 1;
+  version: 2;
   savedAt: number;
   baseUpdatedAt?: string;
   values: EditableIdea;
+  coverUploadPending: boolean;
+};
+
+type LegacyStoredIdeaDraft = {
+  version: 1;
+  savedAt: number;
+  baseUpdatedAt?: string;
+  values: Omit<EditableIdea, "tags"> & {
+    tags?: string[];
+    isDateNight?: boolean;
+    category: string;
+  };
   coverUploadPending: boolean;
 };
 
@@ -48,8 +66,7 @@ export function editableIdeaValues(idea: Idea): EditableIdea {
     description: idea.description,
     category: idea.category,
     status: idea.status,
-    tags: [...idea.tags],
-    isDateNight: idea.isDateNight,
+    tags: normalizeTagSlugs(idea.tags),
     optionalLink: idea.optionalLink,
     optionalImage: idea.optionalImage,
     optionalLocation: idea.optionalLocation,
@@ -64,35 +81,55 @@ export function editableIdeaValues(idea: Idea): EditableIdea {
 }
 
 export function ideaHasUnsavedChanges(current: Idea, baseline: Idea) {
-  return JSON.stringify(editableIdeaValues(current)) !== JSON.stringify(editableIdeaValues(baseline));
+  return JSON.stringify(editableIdeaValues(current)) !==
+    JSON.stringify(editableIdeaValues(baseline));
 }
 
-export function ideaDraftKey(scope: IdeaDraftScope) {
+function draftKey(scope: IdeaDraftScope, version: 1 | 2) {
   const record = scope.mode === "create"
     ? "new"
     : scope.mode === "edit"
       ? scope.ideaId || "unknown"
       : `duplicate:${scope.ideaId || "unknown"}`;
-  return `our-adventures:idea-draft:v${DRAFT_VERSION}:${encodeURIComponent(scope.userId)}:${encodeURIComponent(scope.spaceId)}:${scope.mode}:${encodeURIComponent(record)}`;
+  return `our-adventures:idea-draft:v${version}:${encodeURIComponent(scope.userId)}:${encodeURIComponent(scope.spaceId)}:${scope.mode}:${encodeURIComponent(record)}`;
 }
 
-function isStoredDraft(value: unknown): value is StoredIdeaDraft {
+export function ideaDraftKey(scope: IdeaDraftScope) {
+  return draftKey(scope, DRAFT_VERSION);
+}
+
+function hasBaseDraftShape(value: unknown) {
   if (!value || typeof value !== "object") return false;
-  const draft = value as Partial<StoredIdeaDraft>;
+  const draft = value as Partial<StoredIdeaDraft | LegacyStoredIdeaDraft>;
   const values = draft.values as Partial<EditableIdea> | undefined;
   return (
-    draft.version === DRAFT_VERSION &&
     typeof draft.savedAt === "number" &&
     Boolean(values) &&
     typeof values?.title === "string" &&
     typeof values.description === "string" &&
     typeof values.category === "string" &&
     typeof values.status === "string" &&
-    Array.isArray(values.tags) &&
-    values.tags.every((tag) => typeof tag === "string") &&
-    typeof values.isDateNight === "boolean"
-    && (values.optionalLink === undefined || typeof values.optionalLink === "string")
+    (values.optionalLink === undefined || typeof values.optionalLink === "string")
   );
+}
+
+function isStoredDraft(value: unknown): value is StoredIdeaDraft {
+  if (!hasBaseDraftShape(value)) return false;
+  const draft = value as Partial<StoredIdeaDraft>;
+  return draft.version === DRAFT_VERSION &&
+    Array.isArray(draft.values?.tags) &&
+    draft.values.tags.every((tag) => typeof tag === "string");
+}
+
+function isLegacyStoredDraft(value: unknown): value is LegacyStoredIdeaDraft {
+  if (!hasBaseDraftShape(value)) return false;
+  const draft = value as Partial<LegacyStoredIdeaDraft>;
+  return draft.version === 1 &&
+    (draft.values?.tags === undefined ||
+      (Array.isArray(draft.values.tags) &&
+        draft.values.tags.every((tag) => typeof tag === "string"))) &&
+    (draft.values?.isDateNight === undefined ||
+      typeof draft.values.isDateNight === "boolean");
 }
 
 export function saveIdeaDraft(
@@ -117,13 +154,18 @@ export function loadIdeaDraft(
   serverIdea: Idea,
   now = Date.now(),
 ): LoadedIdeaDraft {
-  const key = ideaDraftKey(scope);
-  const raw = storage.getItem(key);
+  const currentKey = ideaDraftKey(scope);
+  const legacyKey = draftKey(scope, 1);
+  const raw = storage.getItem(currentKey) ?? storage.getItem(legacyKey);
+  const loadedKey = storage.getItem(currentKey) ? currentKey : legacyKey;
   if (!raw) return { status: "none" };
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!isStoredDraft(parsed) || now - parsed.savedAt > IDEA_DRAFT_MAX_AGE_MS) {
-      storage.removeItem(key);
+    if (
+      (!isStoredDraft(parsed) && !isLegacyStoredDraft(parsed)) ||
+      now - parsed.savedAt > IDEA_DRAFT_MAX_AGE_MS
+    ) {
+      storage.removeItem(loadedKey);
       return { status: "none" };
     }
     if (
@@ -131,22 +173,47 @@ export function loadIdeaDraft(
       parsed.baseUpdatedAt !== undefined &&
       parsed.baseUpdatedAt !== serverIdea.updatedAt
     ) {
-      storage.removeItem(key);
+      storage.removeItem(loadedKey);
       return { status: "stale" };
     }
-    const { pendingCoverFileName: _pendingCoverFileName, ...values } = parsed.values;
+    const {
+      pendingCoverFileName: _pendingCoverFileName,
+      ...storedValues
+    } = parsed.values;
     void _pendingCoverFileName;
+    const legacyDateNight = isLegacyStoredDraft(parsed) &&
+      (parsed.values.isDateNight === true ||
+        isLegacyDateNightCategory(parsed.values.category));
+    const tags = normalizeTagSlugs([
+      ...(parsed.values.tags ?? []),
+      ...(legacyDateNight ? ["date-night"] : []),
+    ]);
+    const category = isLegacyDateNightCategory(parsed.values.category)
+      ? "social"
+      : normalizeCategory(parsed.values.category);
+    const values = { ...storedValues, category, tags };
+    delete (values as { isDateNight?: boolean }).isDateNight;
+    if (loadedKey === legacyKey) {
+      storage.removeItem(legacyKey);
+    }
     return {
       status: "restored",
-      idea: { ...serverIdea, ...values, pendingCoverFile: undefined },
+      idea: {
+        ...serverIdea,
+        ...values,
+        tags,
+        isDateNight: tags.includes("date-night"),
+        pendingCoverFile: undefined,
+      },
       photoNeedsReselection: parsed.coverUploadPending === true,
     };
   } catch {
-    storage.removeItem(key);
+    storage.removeItem(loadedKey);
     return { status: "none" };
   }
 }
 
 export function clearIdeaDraft(storage: Storage, scope: IdeaDraftScope) {
   storage.removeItem(ideaDraftKey(scope));
+  storage.removeItem(draftKey(scope, 1));
 }

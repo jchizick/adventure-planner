@@ -1,4 +1,9 @@
 import type { Idea, IdeaStatus } from "./types";
+import {
+  normalizeTagSlugs,
+  tagDefinition,
+  type TagSlug,
+} from "./tag-model";
 
 export const primaryCategories = [
   { id: "food-drink", label: "Food & Drink" },
@@ -12,7 +17,7 @@ export const primaryCategories = [
 ] as const;
 
 export type Category = (typeof primaryCategories)[number]["id"];
-export type IdeaCategoryFilter = "all" | "date-night" | Category;
+export type IdeaCategoryFilter = "all" | Category;
 export type IdeaFilterStatus = IdeaStatus | "Planned";
 export type SchedulingFilter = "Upcoming" | "Unscheduled" | "Past";
 
@@ -24,14 +29,14 @@ export type AdvancedIdeaFilters = {
   statuses: IdeaFilterStatus[];
   addedByUserIds: string[];
   scheduling: SchedulingFilter[];
-  dateNightOnly: boolean;
+  selectedTagSlugs: TagSlug[];
 };
 
 export const emptyAdvancedIdeaFilters: AdvancedIdeaFilters = {
   statuses: [],
   addedByUserIds: [],
   scheduling: [],
-  dateNightOnly: false,
+  selectedTagSlugs: [],
 };
 
 const aliases: Record<string, Category> = {
@@ -111,6 +116,10 @@ export function duplicateIdeaForEditing(
   creator?: { id: string; displayName: string },
   now = new Date().toISOString(),
 ): Idea {
+  const tags = normalizeTagSlugs([
+    ...source.tags,
+    ...(source.isDateNight ? ["date-night"] : []),
+  ]);
   return {
     ...source,
     id: "",
@@ -126,6 +135,8 @@ export function duplicateIdeaForEditing(
     proposedEndDate: undefined,
     proposedEndTime: undefined,
     linkedAdventureId: undefined,
+    tags: [...tags],
+    isDateNight: tags.includes("date-night"),
   };
 }
 
@@ -151,7 +162,7 @@ export function ideaScheduling(
 
 export function countAdvancedIdeaFilters(filters: AdvancedIdeaFilters) {
   return filters.statuses.length + filters.addedByUserIds.length +
-    filters.scheduling.length + Number(filters.dateNightOnly);
+    filters.scheduling.length + filters.selectedTagSlugs.length;
 }
 
 export function filterIdeas(
@@ -162,9 +173,15 @@ export function filterIdeas(
 ) {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   return ideas.filter((idea) => {
-    const matchesCategory = categoryFilter === "all" ||
-      (categoryFilter === "date-night" ? idea.isDateNight : idea.category === categoryFilter);
-    const searchable = [idea.title, idea.description, idea.optionalLink, idea.optionalLocation, ...idea.tags]
+    const matchesCategory = categoryFilter === "all" || idea.category === categoryFilter;
+    const normalizedTags = normalizeTagSlugs(idea.tags);
+    const searchable = [
+      idea.title,
+      idea.description,
+      idea.optionalLink,
+      idea.optionalLocation,
+      ...normalizedTags.map((slug) => tagDefinition(slug)?.label),
+    ]
       .filter(Boolean).join(" ").toLocaleLowerCase();
     const effectiveStatus = effectiveIdeaStatus(idea);
     const matchesStatus = advanced.statuses.length
@@ -176,6 +193,7 @@ export function filterIdeas(
       (!advanced.addedByUserIds.length ||
         (idea.addedByUserId != null && advanced.addedByUserIds.includes(idea.addedByUserId))) &&
       (!advanced.scheduling.length || advanced.scheduling.includes(ideaScheduling(idea))) &&
-      (!advanced.dateNightOnly || idea.isDateNight);
+      (!advanced.selectedTagSlugs.length ||
+        advanced.selectedTagSlugs.some((slug) => normalizedTags.includes(slug)));
   });
 }

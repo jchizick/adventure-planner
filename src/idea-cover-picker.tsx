@@ -32,6 +32,7 @@ export function IdeaCoverPicker({
     | "category"
     | "title"
     | "description"
+    | "tags"
     | "isDateNight"
     | "coverPresetId"
     | "optionalImage"

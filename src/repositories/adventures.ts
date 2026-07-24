@@ -1,5 +1,9 @@
 import { supabase } from "../lib/supabase";
-import { normalizeCategoryOrNull } from "../idea-model";
+import {
+  isLegacyDateNightCategory,
+  normalizeCategory,
+  normalizeCategoryOrNull,
+} from "../idea-model";
 import { resolveMemberDisplayName } from "../member-names";
 import {
   bestEffortCoverCleanup,
@@ -21,6 +25,7 @@ import type {
   AdventureStatus,
   SavedLocation,
 } from "../types";
+import { normalizeTagSlugs, tagIdsForSlugs } from "../tag-model";
 
 type DatabaseAdventureStatus = "tentative" | "confirmed" | "completed";
 type ProfileJoin =
@@ -60,6 +65,12 @@ export type AdventureRow = {
   updated_at: string;
   creator_profile?: ProfileJoin;
   updater_profile?: ProfileJoin;
+  adventure_tags?: {
+    tag:
+      | { slug: string; sort_order: number }
+      | { slug: string; sort_order: number }[]
+      | null;
+  }[];
 };
 
 export const adventureColumns = `
@@ -70,7 +81,8 @@ export const adventureColumns = `
   notes, cover_image_url, cover_variant, cover_storage_path,
   is_favorite, completed_at, created_by, updated_by, created_at, updated_at,
   creator_profile:profiles!adventures_created_by_fkey(display_name),
-  updater_profile:profiles!adventures_updated_by_fkey(display_name)
+  updater_profile:profiles!adventures_updated_by_fkey(display_name),
+  adventure_tags(tag:tags(slug, sort_order))
 `;
 
 const databaseToUiStatus: Record<DatabaseAdventureStatus, AdventureStatus> = {
@@ -98,6 +110,15 @@ function displayTime(value: string | null) {
 
 export function mapAdventure(row: AdventureRow): Adventure {
   const savedLocation = mapSavedLocation(row);
+  const tags = normalizeTagSlugs(
+    (row.adventure_tags ?? [])
+      .flatMap((assignment) =>
+        Array.isArray(assignment.tag) ? assignment.tag : [assignment.tag],
+      )
+      .filter((tag): tag is { slug: string; sort_order: number } => Boolean(tag))
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((tag) => tag.slug),
+  );
   return {
     id: row.id,
     title: row.title,
@@ -117,6 +138,7 @@ export function mapAdventure(row: AdventureRow): Adventure {
     timezone: row.timezone ?? undefined,
     geocodedLocation: row.geocoded_location ?? undefined,
     category: normalizeCategoryOrNull(row.category) ?? undefined,
+    tags,
     sourceIdeaId: row.source_idea_id ?? undefined,
     stops: [],
     notes: row.notes ?? "",
@@ -129,6 +151,30 @@ export function mapAdventure(row: AdventureRow): Adventure {
     completedAt: row.completed_at ?? undefined,
     favorite: row.is_favorite,
   };
+}
+
+async function replaceAdventureTags(
+  adventureId: string,
+  tags: readonly string[],
+) {
+  const { error } = await supabase.rpc("set_adventure_tags", {
+    p_adventure_id: adventureId,
+    p_tag_ids: tagIdsForSlugs(tags),
+  });
+  if (error) throw repositoryError("save tags for", error);
+}
+
+function normalizedPlanCategory(plan: AdventurePlanInput) {
+  return isLegacyDateNightCategory(String(plan.category))
+    ? "social"
+    : normalizeCategory(String(plan.category ?? "culture"));
+}
+
+function normalizedPlanTags(plan: AdventurePlanInput) {
+  return normalizeTagSlugs([
+    ...(plan.tags ?? []),
+    ...(isLegacyDateNightCategory(String(plan.category)) ? ["date-night"] : []),
+  ]);
 }
 
 async function mapAdventureWithCover(
@@ -238,7 +284,7 @@ export async function createAdventure(
         space_id: spaceId,
         title: plan.title.trim(),
         description: plan.description.trim() || null,
-        category: plan.category ?? "culture",
+        category: normalizedPlanCategory(plan),
         status: uiToDatabaseStatus[plan.status],
         event_date: plan.date,
         end_date: plan.endDate || null,
@@ -255,7 +301,10 @@ export async function createAdventure(
       .select(adventureColumns)
       .single();
     if (error) throw repositoryError("create", error);
-    return mapAdventureWithCover(data as unknown as AdventureRow);
+    const tags = normalizedPlanTags(plan);
+    await replaceAdventureTags(adventureId, tags);
+    const saved = await mapAdventureWithCover(data as unknown as AdventureRow);
+    return { ...saved, tags };
   } catch (error) {
     if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
     throw error;
@@ -284,7 +333,7 @@ export async function updateAdventure(
     const payload: Record<string, unknown> = {
       title: plan.title.trim(),
       description: plan.description.trim() || null,
-      category: plan.category ?? "culture",
+      category: normalizedPlanCategory(plan),
       event_date: plan.date,
       end_date: plan.endDate || null,
       start_time: plan.startTime || null,
@@ -305,7 +354,10 @@ export async function updateAdventure(
       .select(adventureColumns)
       .single();
     if (error) throw repositoryError("update", error);
-    const saved = await mapAdventureWithCover(data as unknown as AdventureRow);
+    const tags = normalizedPlanTags(plan);
+    await replaceAdventureTags(adventureId, tags);
+    const mapped = await mapAdventureWithCover(data as unknown as AdventureRow);
+    const saved = { ...mapped, tags };
     if (previous.coverStoragePath !== saved.coverStoragePath)
       void bestEffortCoverCleanup(previous.coverStoragePath);
     return saved;
@@ -403,7 +455,7 @@ export async function promoteIdea(
   const coverStoragePath = (uploadedPath ?? plan.coverStoragePath?.trim()) || null;
   try {
     const locationPayload = promotionLocationRpcPayload(plan);
-    const { data, error } = await supabase.rpc("promote_idea_to_adventure_v4", {
+    const { data, error } = await supabase.rpc("promote_idea_to_adventure_v5", {
       p_idea_id: ideaId,
       p_title: plan.title.trim(),
       p_description: plan.description.trim(),
@@ -414,12 +466,14 @@ export async function promoteIdea(
       p_status: uiToDatabaseStatus[plan.status],
       ...locationPayload,
       p_notes: plan.notes.trim() || null,
-      p_category: plan.category ?? null,
+      p_category: normalizedPlanCategory(plan),
       p_cover_image_url: coverStoragePath ? null : plan.coverImage?.trim() || null,
       p_cover_storage_path: coverStoragePath,
+      p_tag_ids: tagIdsForSlugs(normalizedPlanTags(plan)),
     });
     if (error) throw repositoryError("promote", error);
-    return mapAdventureWithCover(data as unknown as AdventureRow);
+    const created = await mapAdventureWithCover(data as unknown as AdventureRow);
+    return { ...created, tags: normalizedPlanTags(plan) };
   } catch (error) {
     if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
     throw error;

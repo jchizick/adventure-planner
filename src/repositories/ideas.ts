@@ -13,6 +13,7 @@ import {
   signedCoverUrl,
   uploadCoverFile,
 } from "../cover-storage";
+import { normalizeTagSlugs, tagIdsForSlugs } from "../tag-model";
 
 type DatabaseIdeaStatus = "idea" | "tentative" | "confirmed";
 
@@ -24,6 +25,12 @@ type IdeaRow = {
   category: string;
   status: DatabaseIdeaStatus;
   tags: string[];
+  idea_tags?: {
+    tag:
+      | { slug: string; sort_order: number }
+      | { slug: string; sort_order: number }[]
+      | null;
+  }[];
   optional_link: string | null;
   image_url: string | null;
   cover_preset_id: string | null;
@@ -89,6 +96,7 @@ const ideaColumns = `
   created_at,
   updated_at,
   is_date_night,
+  idea_tags(tag:tags(slug, sort_order)),
   linked_adventure:adventures!ideas_linked_adventure_id_fkey(event_date),
   added_by_profile:profiles!ideas_added_by_fkey(display_name)
 `;
@@ -115,6 +123,23 @@ async function mapIdea(row: IdeaRow, forceCoverRefresh = false): Promise<Idea> {
   const coverUrl = row.cover_storage_path
     ? await signedCoverUrl(row.cover_storage_path, forceCoverRefresh)
     : undefined;
+  const hasRelationalAssignments = Array.isArray(row.idea_tags);
+  const relationalTags = (row.idea_tags ?? [])
+    .flatMap((assignment) =>
+      Array.isArray(assignment.tag) ? assignment.tag : [assignment.tag],
+    )
+    .filter((tag): tag is { slug: string; sort_order: number } => Boolean(tag))
+    .sort((left, right) => left.sort_order - right.sort_order)
+    .map((tag) => tag.slug);
+  const tags = normalizeTagSlugs([
+    ...relationalTags,
+    ...(hasRelationalAssignments ? [] : row.tags),
+    ...(hasRelationalAssignments ? [] :
+      row.is_date_night === true || isLegacyDateNightCategory(row.category)
+        ? ["date-night"]
+        : []
+    ),
+  ]);
   return {
     id: row.id,
     spaceId: row.space_id,
@@ -122,13 +147,12 @@ async function mapIdea(row: IdeaRow, forceCoverRefresh = false): Promise<Idea> {
     description: row.description ?? "",
     category: normalizeCategory(row.category),
     status: databaseToUiStatus[row.status],
-    tags: row.tags,
+    tags,
     addedBy: resolveMemberDisplayName({
       displayName: addedByProfile?.display_name,
     }),
     addedByUserId: row.added_by,
-    isDateNight:
-      row.is_date_night === true || isLegacyDateNightCategory(row.category),
+    isDateNight: tags.includes("date-night"),
     scheduledFor: linkedAdventure?.event_date ?? row.proposed_start_date ?? undefined,
     proposedStartDate: row.proposed_start_date ?? undefined,
     proposedStartTime: row.proposed_start_time ?? undefined,
@@ -154,10 +178,10 @@ function writableFields(draft: IdeaDraft, uploadedPath?: string) {
   return {
     title: draft.title.trim(),
     description: draft.description.trim() || null,
-    category: draft.category,
-    is_date_night: draft.isDateNight,
+    category: isLegacyDateNightCategory(String(draft.category))
+      ? "social"
+      : normalizeCategory(String(draft.category)),
     status: uiToDatabaseStatus[draft.status],
-    tags: draft.tags,
     optional_link: normalizedUrl.url ?? null,
     image_url: externalImage,
     cover_storage_path: coverStoragePath,
@@ -181,6 +205,25 @@ function writableFields(draft: IdeaDraft, uploadedPath?: string) {
         ? { cover_preset_id: draft.coverPresetId }
         : {}),
   };
+}
+
+function normalizedDraftTags(draft: IdeaDraft) {
+  return normalizeTagSlugs([
+    ...(draft.tags ?? []),
+    ...(
+      draft.isDateNight || isLegacyDateNightCategory(String(draft.category))
+        ? ["date-night"]
+        : []
+    ),
+  ]);
+}
+
+async function replaceIdeaTags(ideaId: string, tags: readonly string[]) {
+  const { error } = await supabase.rpc("set_idea_tags", {
+    p_idea_id: ideaId,
+    p_tag_ids: tagIdsForSlugs(tags),
+  });
+  if (error) throw repositoryError("save tags for", error);
 }
 
 function repositoryError(action: string, error: { message: string }) {
@@ -221,7 +264,7 @@ export async function createIdea(
           category: draft.category,
           title: draft.title,
           description: draft.description,
-          isDateNight: draft.isDateNight,
+          tags: normalizedDraftTags(draft),
           coverPresetId: draft.coverPresetId,
         }).id;
     const { data, error } = await supabase
@@ -236,7 +279,10 @@ export async function createIdea(
       .select(ideaColumns)
       .single();
     if (error) throw repositoryError("save", error);
-    return mapIdea(data as unknown as IdeaRow);
+    const tags = normalizedDraftTags(draft);
+    await replaceIdeaTags(id, tags);
+    const saved = await mapIdea(data as unknown as IdeaRow);
+    return { ...saved, tags, isDateNight: tags.includes("date-night") };
   } catch (error) {
     if (uploadedPath) await removeCoverObject(uploadedPath).catch(() => undefined);
     throw error;
@@ -266,7 +312,10 @@ export async function updateIdea(
       .select(ideaColumns)
       .single();
     if (error) throw repositoryError("update", error);
-    const saved = await mapIdea(data as unknown as IdeaRow);
+    const tags = normalizedDraftTags(draft);
+    await replaceIdeaTags(ideaId, tags);
+    const mapped = await mapIdea(data as unknown as IdeaRow);
+    const saved = { ...mapped, tags, isDateNight: tags.includes("date-night") };
     if (previous?.coverStoragePath !== saved.coverStoragePath)
       void bestEffortCoverCleanup(previous?.coverStoragePath);
     return saved;

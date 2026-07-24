@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IdeaDraft } from "./repositories/ideas";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 
-vi.mock("./lib/supabase", () => ({ supabase: { from: mocks.from } }));
+vi.mock("./lib/supabase", () => ({
+  supabase: { from: mocks.from, rpc: mocks.rpc },
+}));
 
 import { createIdea, updateIdea } from "./repositories/ideas";
 
@@ -73,6 +75,8 @@ function updateQuery(result: ReturnType<typeof row>) {
 
 beforeEach(() => {
   mocks.from.mockReset();
+  mocks.rpc.mockReset();
+  mocks.rpc.mockResolvedValue({ data: null, error: null });
   vi.restoreAllMocks();
   vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(ideaId);
 });

@@ -23,6 +23,7 @@ const plan: AdventurePlanInput = {
   location: "",
   notes: "",
   category: "trips-getaways",
+  tags: ["seasonal"],
 };
 
 const row = {
@@ -72,9 +73,10 @@ describe("promotion repository transaction boundary", () => {
       date: plan.date,
       endDate: plan.endDate,
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("promote_idea_to_adventure_v4", expect.objectContaining({
+    expect(mocks.rpc).toHaveBeenCalledWith("promote_idea_to_adventure_v5", expect.objectContaining({
       p_idea_id: "idea-1",
       p_cover_storage_path: null,
+      p_tag_ids: ["00000000-0000-4000-8000-000000000004"],
     }));
     expect(mocks.from).not.toHaveBeenCalled();
   });

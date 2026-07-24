@@ -14,7 +14,7 @@ const source: Idea = {
   description: "Try the evening class",
   category: "social",
   status: "Confirmed",
-  tags: ["active"],
+  tags: ["date-night"],
   addedBy: "Jordan",
   addedByUserId: "user-1",
   isDateNight: true,
@@ -58,6 +58,35 @@ describe("Idea categories", () => {
       statuses: ["Planned"],
     })).toEqual([source]);
   });
+
+  it("combines category and OR tag filters while keeping tag-label search", () => {
+    const date = { ...source, linkedAdventureId: undefined };
+    const rainy = {
+      ...date,
+      id: "idea-2",
+      title: "Indoor market",
+      tags: ["rainy-day"],
+      isDateNight: false,
+    };
+    const outdoor = {
+      ...date,
+      id: "idea-3",
+      title: "Trail walk",
+      category: "outdoors" as const,
+      tags: ["seasonal"],
+      isDateNight: false,
+    };
+    const filters = {
+      ...emptyAdvancedIdeaFilters,
+      selectedTagSlugs: ["date-night", "rainy-day"] as const,
+    };
+    expect(filterIdeas([date, rainy, outdoor], "social", "", {
+      ...filters,
+      selectedTagSlugs: [...filters.selectedTagSlugs],
+    })).toEqual([date, rainy]);
+    expect(filterIdeas([date, rainy], "all", "rainy day", emptyAdvancedIdeaFilters))
+      .toEqual([rainy]);
+  });
 });
 
 describe("Idea duplication draft", () => {
@@ -87,6 +116,9 @@ describe("Idea duplication draft", () => {
       scheduledFor: undefined,
       linkedAdventureId: undefined,
     });
+    expect(duplicate.tags).not.toBe(source.tags);
+    duplicate.tags.splice(0, 1);
+    expect(source.tags).toEqual(["date-night"]);
     expect(source.linkedAdventureId).toBe("adventure-1");
   });
 

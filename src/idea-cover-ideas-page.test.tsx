@@ -69,7 +69,7 @@ describe("Saved Idea cover rendering", () => {
     );
 
     const filters = container.querySelectorAll(".category-tile");
-    expect(filters).toHaveLength(10);
+    expect(filters).toHaveLength(9);
     for (const filter of filters) {
       expect(filter.querySelector("svg")).toBeTruthy();
       expect(filter.querySelector("img")).toBeNull();

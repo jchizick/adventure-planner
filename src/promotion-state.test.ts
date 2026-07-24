@@ -34,6 +34,7 @@ const plan = {
   status: "Tentative",
   location: "",
   notes: "",
+  tags: [],
 } satisfies AdventurePlanInput;
 
 describe("promotion state reconciliation", () => {

@@ -577,6 +577,7 @@ export type IdeaCoverAssignment = {
   title?: string | null;
   description?: string | null;
   isDateNight?: boolean;
+  tags?: readonly string[];
   coverPresetId?: string | null;
 };
 
@@ -608,10 +609,11 @@ function resolveAutomaticIdeaCoverPreset(
     : presets;
   const matched = keywordPreset(keywordPresets, searchable);
   if (matched) return matched;
-  if (idea.isDateNight && category === "food-drink") {
+  const isDateNight = idea.tags?.includes("date-night") || idea.isDateNight;
+  if (isDateNight && category === "food-drink") {
     return getIdeaCoverPreset("food-dinner");
   }
-  if (idea.isDateNight && category === "at-home") {
+  if (isDateNight && category === "at-home") {
     return getIdeaCoverPreset("home-cozy-night");
   }
 

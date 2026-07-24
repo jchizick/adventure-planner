@@ -69,6 +69,8 @@ import {
   resolveMemoryCover,
 } from "./category-visuals";
 import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
+import { TagList, TagSelector } from "./tags";
+import { curatedTags } from "./tag-model";
 import { IdeaCoverPicker } from "./idea-cover-picker";
 import { getIdeaCoverPreset, isIdeaCoverPresetId, resolveIdeaCoverPreset } from "./idea-covers";
 import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
@@ -139,7 +141,6 @@ import type {
   LocationDraft,
 } from "./types";
 const catIcon: Record<string, typeof Heart> = {
-  "date-night": Heart,
   "food-drink": Utensils,
   "music-events": Music,
   outdoors: Mountain,
@@ -364,6 +365,7 @@ export function Today() {
               <small>
                 {formatAdventureDateTimeRange({ startDate: a.date, startTime: a.startTime, endDate: a.endDate, endTime: a.endTime })}
               </small>
+              <TagList tags={a.tags} limit={2} />
             </span>
             <em>{a.status}</em>
           </button>
@@ -406,6 +408,7 @@ export function Today() {
               />
               <span className="idea-rail-copy">
                 <span className="idea-rail-title">{idea.title}</span>
+                <TagList tags={idea.tags} limit={1} className="idea-rail-tags" />
                 <span className="idea-rail-meta">
                   {idea.linkedAdventureId ? (
                     <span className="planned-chip">
@@ -584,13 +587,28 @@ function AdvancedFiltersPopover({
             </div>
           </fieldset>
           <fieldset>
-            <legend>Additional</legend>
+            <legend>Tags</legend>
             <div className="filter-options-list">
-              <label className="filter-option">
-                <input type="checkbox" checked={filters.dateNightOnly} onChange={(event) => onChange({ ...filters, dateNightOnly: event.target.checked })} />
-                <span>Date Night only</span>
-              </label>
+              {curatedTags.map((tag) => (
+                <label className="filter-option" key={tag.id}>
+                  <input
+                    type="checkbox"
+                    checked={filters.selectedTagSlugs.includes(tag.slug)}
+                    onChange={() => onChange({
+                      ...filters,
+                      selectedTagSlugs: toggleFilterValue(
+                        filters.selectedTagSlugs,
+                        tag.slug,
+                      ),
+                    })}
+                  />
+                  <span>{tag.label}</span>
+                </label>
+              ))}
             </div>
+            <small className="filter-helper">
+              Matches ideas with any selected tag.
+            </small>
           </fieldset>
         </div>
       )}
@@ -747,7 +765,6 @@ export function Ideas() {
   const counts = useMemo(
     () => activeIdeas.reduce<Record<string, number>>((result, idea) => {
       result[idea.category] = (result[idea.category] || 0) + 1;
-      if (idea.isDateNight) result["date-night"] = (result["date-night"] || 0) + 1;
       return result;
     }, { all: activeIdeas.length }),
     [activeIdeas],
@@ -762,7 +779,6 @@ export function Ideas() {
   );
   const categoryFilters: { id: IdeaCategoryFilter; label: string }[] = [
     { id: "all", label: "All Ideas" },
-    { id: "date-night", label: "Date Night" },
     ...primaryCategories,
   ];
   return (
@@ -865,6 +881,7 @@ export function Ideas() {
                 <div className="idea-body">
                   <h3>{i.title}</h3>
                   <p>{i.description}</p>
+                  <TagList tags={i.tags} limit={2} />
                   <div>
                     {i.linkedAdventureId ? (
                       <span className="planned-chip">
@@ -985,12 +1002,16 @@ function IdeaSheetContent({
   onPlan,
   onView,
 }: Omit<IdeaSheetProps, "idea"> & { idea: Idea }) {
+  const normalizedIdea = idea.isDateNight && !idea.tags.includes("date-night")
+    ? { ...idea, tags: [...idea.tags, "date-night"] }
+    : idea;
   const [initial] = useState(() => {
-    if (!draftScope) return { draft: idea, notice: null as string | null };
+    if (!draftScope)
+      return { draft: normalizedIdea, notice: null as string | null };
     try {
-      const loaded = loadIdeaDraft(window.localStorage, draftScope, idea);
+      const loaded = loadIdeaDraft(window.localStorage, draftScope, normalizedIdea);
       return {
-        draft: loaded.status === "restored" ? loaded.idea : idea,
+        draft: loaded.status === "restored" ? loaded.idea : normalizedIdea,
         notice:
           loaded.status === "restored"
             ? loaded.photoNeedsReselection
@@ -1001,11 +1022,11 @@ function IdeaSheetContent({
               : null,
       };
     } catch {
-      return { draft: idea, notice: null as string | null };
+      return { draft: normalizedIdea, notice: null as string | null };
     }
   });
   const [draft, setDraft] = useState<Idea>(initial.draft);
-  const [baseline, setBaseline] = useState<Idea>(idea);
+  const [baseline, setBaseline] = useState<Idea>(normalizedIdea);
   const [draftNotice, setDraftNotice] = useState<string | null>(initial.notice);
   const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1188,20 +1209,17 @@ function IdeaSheetContent({
             </select>
           </label>
         </div>
-        <label
-          className={`date-night-field ${d.isDateNight ? "selected" : ""}`}
-        >
-          <Heart aria-hidden="true" />
-          <span>
-            <strong>Date Night</strong>
-            <small>Mark this as a date idea</small>
-          </span>
-          <input
-            type="checkbox"
-            checked={d.isDateNight}
-            onChange={(e) => setDraft({ ...d, isDateNight: e.target.checked })}
-          />
-        </label>
+        <TagSelector
+          value={d.tags}
+          disabled={saving}
+          onChange={(tags) =>
+            setDraft({
+              ...d,
+              tags,
+              isDateNight: tags.includes("date-night"),
+            })
+          }
+        />
         <fieldset className="proposed-date-fields">
           <legend>Proposed date <span>Optional</span></legend>
           <div className="form-row">
@@ -1454,6 +1472,7 @@ export function AdventureFormSheet({
       location: idea?.optionalLocation || "",
       notes: "",
       category: idea?.category || "culture",
+      tags: [...(idea?.tags ?? [])],
       coverImage: idea?.coverStoragePath
         ? undefined
         : idea?.optionalImage || (idea ? resolveIdeaCoverPreset(idea).path : undefined),
@@ -1462,6 +1481,7 @@ export function AdventureFormSheet({
     };
     return {
       ...base,
+      tags: [...(base.tags ?? [])],
       locationDraft:
         base.locationDraft ??
         initialLocationDraft(savedLocation, base.location),
@@ -1555,6 +1575,11 @@ export function AdventureFormSheet({
             ))}
           </select>
         </label>
+        <TagSelector
+          value={plan.tags}
+          disabled={saving}
+          onChange={(tags) => update("tags", tags)}
+        />
         <div className="idea-cover-field">
           <span className="idea-cover-field-label">Cover</span>
           <button
@@ -2836,6 +2861,7 @@ export function AdventureDetail() {
             endTime: a.endTime,
           })}
         </p>
+        <TagList tags={a.tags} className="detail-tags" />
         <div className="detail-meta">
           <span className="detail-location"><MapPin /> {a.location}</span>
           <WeatherIndicator
@@ -3119,6 +3145,7 @@ export function AdventureDetail() {
               location: a.location === "Location to be decided" ? "" : a.location,
               notes: a.notes,
               category: a.category,
+              tags: [...a.tags],
               coverImage: a.coverImage,
               coverVariant: a.coverVariant,
               coverStoragePath: a.coverStoragePath,

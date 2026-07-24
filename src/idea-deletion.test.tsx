@@ -305,8 +305,8 @@ describe("IdeaSheet cover editing", () => {
   });
 });
 
-describe("IdeaSheet Date Night control", () => {
-  it("renders one coherent native-checkbox row and loads an existing value", () => {
+describe("IdeaSheet tag controls", () => {
+  it("renders the curated tags and normalizes an existing Date Night value", () => {
     render(
       <IdeaSheet
         idea={{ ...idea, isDateNight: true }}
@@ -319,31 +319,22 @@ describe("IdeaSheet Date Night control", () => {
       />,
     );
 
-    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
-      name: /Date Night/,
-    });
-    const row = checkbox.closest("label");
-    expect(row?.classList.contains("date-night-field")).toBe(true);
-    expect(row?.classList.contains("selected")).toBe(true);
-    expect(screen.getByText("Mark this as a date idea")).toBeTruthy();
-    expect(checkbox.checked).toBe(true);
+    const button = screen.getByRole("button", { name: "Date Night" });
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getAllByRole("button", { pressed: false })).toHaveLength(5);
   });
 
-  it("toggles from the whole row and with the keyboard", async () => {
+  it("toggles with pointer and keyboard activation", async () => {
     const user = userEvent.setup();
     renderSheet();
-    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
-      name: /Date Night/,
-    });
-    const row = checkbox.closest("label");
-    if (!row) throw new Error("Expected the Date Night label row.");
+    const button = screen.getByRole("button", { name: "Date Night" });
 
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Title")));
-    fireEvent.click(row);
-    expect(checkbox.checked).toBe(true);
-    checkbox.focus();
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    button.focus();
     await user.keyboard("[Space]");
-    expect(checkbox.checked).toBe(false);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("saves the selected value while closing without Save does not persist", async () => {
@@ -360,10 +351,14 @@ describe("IdeaSheet Date Night control", () => {
         onView={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByText("Date Night").closest("label")!);
+    fireEvent.click(screen.getByRole("button", { name: "Date Night" }));
     fireEvent.click(screen.getByRole("button", { name: "Save idea" }));
     await waitFor(() =>
-      expect(onSave).toHaveBeenCalledWith({ ...idea, isDateNight: true }),
+      expect(onSave).toHaveBeenCalledWith({
+        ...idea,
+        tags: ["date-night"],
+        isDateNight: true,
+      }),
     );
 
     unmount();
@@ -380,7 +375,7 @@ describe("IdeaSheet Date Night control", () => {
         onView={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByText("Date Night").closest("label")!);
+    fireEvent.click(screen.getByRole("button", { name: "Date Night" }));
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
     expect(cancelClose).not.toHaveBeenCalled();

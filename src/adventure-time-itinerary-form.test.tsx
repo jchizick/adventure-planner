@@ -38,6 +38,7 @@ const plan = (
   notes: "",
   category: "culture",
   ...overrides,
+  tags: overrides.tags ?? [],
 });
 
 const stop = (overrides: Partial<AdventureStop> = {}): AdventureStop => ({

@@ -50,6 +50,42 @@ describe("Idea draft persistence", () => {
     expect(ideaHasUnsavedChanges({ ...idea, title: "Changed" }, idea)).toBe(true);
     expect(ideaHasUnsavedChanges({ ...idea, updatedAt: "later" }, idea)).toBe(false);
     expect(ideaHasUnsavedChanges({ ...idea, optionalLink: "https://example.com" }, idea)).toBe(true);
+    expect(ideaHasUnsavedChanges(
+      { ...idea, tags: ["seasonal", "date-night"] },
+      { ...idea, tags: ["date-night", "seasonal"] },
+    )).toBe(false);
+    expect(ideaHasUnsavedChanges(
+      { ...idea, tags: ["date-night"] },
+      idea,
+    )).toBe(true);
+  });
+
+  it("restores a version-one Date Night draft without a tags field safely", () => {
+    const legacyKey = ideaDraftKey(scope).replace(":v2:", ":v1:");
+    localStorage.setItem(legacyKey, JSON.stringify({
+      version: 1,
+      savedAt: 1000,
+      baseUpdatedAt: idea.updatedAt,
+      values: {
+        title: "Legacy date",
+        description: idea.description,
+        category: "date-night",
+        status: idea.status,
+        isDateNight: true,
+      },
+      coverUploadPending: false,
+    }));
+    const loaded = loadIdeaDraft(localStorage, scope, idea, 2000);
+    expect(loaded).toMatchObject({
+      status: "restored",
+      idea: {
+        title: "Legacy date",
+        category: "social",
+        tags: ["date-night"],
+        isDateNight: true,
+      },
+    });
+    expect(localStorage.getItem(legacyKey)).toBeNull();
   });
 
   it("restores a valid same-user, same-space draft", () => {

@@ -36,6 +36,7 @@ const nextAdventure: Adventure = {
   updatedBy: "Member",
   completed: false,
   favorite: false,
+  tags: [],
 };
 
 function idea(overrides: Partial<Idea> = {}): Idea {

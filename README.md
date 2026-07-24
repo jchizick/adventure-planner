@@ -89,6 +89,16 @@ the browser generates short-lived signed URLs for rendering. Promotion and
 duplication deliberately share the stable object reference, and cleanup removes
 an object only after no Idea or Adventure references it.
 
+Ideas and Adventures keep one primary activity category and may also use the
+six curated tags defined in `src/tag-model.ts`. Tag definitions are read-only to
+authenticated clients; membership-scoped assignments live in `idea_tags` and
+`adventure_tags`. Selecting multiple tag filters uses OR semantics, while the
+category and search filters continue to combine with the tag result. The
+`20260724025507_add_curated_tags.sql` migration converts legacy Date Night
+signals into the `date-night` tag. A still-present Date Night primary category
+uses `social` as its neutral fallback; already-valid independently selected
+categories are preserved.
+
 ## Invitation email delivery
 
 The deployed `send-space-invitation` Edge Function validates the signed-in

@@ -26,6 +26,7 @@ function adventure(overrides: Partial<Adventure> = {}): Adventure {
     completed: false,
     favorite: false,
     ...overrides,
+    tags: overrides.tags ?? [],
   };
 }
 

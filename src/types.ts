@@ -135,6 +135,7 @@ export interface Adventure {
   geocodedLocation?: string;
   locationWeatherWarning?: string;
   category?: Category;
+  tags: string[];
   sourceIdeaId?: string;
   stops: AdventureStop[];
   notes: string;
@@ -204,6 +205,7 @@ export interface AdventurePlanInput {
   locationDraft?: LocationDraft;
   notes: string;
   category?: Category;
+  tags: string[];
   coverImage?: string;
   coverVariant?: AdventureCoverVariant;
   coverStoragePath?: string;
