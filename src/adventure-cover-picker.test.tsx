@@ -14,7 +14,7 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("Adventure CoverPhotoSheet", () => {
-  it("retains Automatic, category presets, and the custom URL field", async () => {
+  it("renders the unified source selector and only the active source controls", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <CoverPhotoSheet
@@ -24,9 +24,11 @@ describe("Adventure CoverPhotoSheet", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /Automatic/ })).toBeTruthy();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getByRole("radio", { name: "Automatic" }).getAttribute("aria-checked"))
+      .toBe("true");
     expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
-    expect(screen.getByLabelText("Custom image URL")).toBeTruthy();
+    expect(screen.queryByLabelText("Custom image URL")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Use Canoe on the lake cover" }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
@@ -86,7 +88,9 @@ describe("Adventure CoverPhotoSheet", () => {
       .toBe("https://images.example/adventure.webp");
     expect((screen.getByAltText("Adventure cover preview") as HTMLImageElement).src)
       .toContain("https://images.example/adventure.webp");
-    expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
+    expect(screen.getByRole("radio", { name: "Image URL" }).getAttribute("aria-checked"))
+      .toBe("true");
+    expect(screen.queryByLabelText("Category cover choices")).toBeNull();
   });
 
   it("retains clearing an explicit preset back to Automatic", async () => {
@@ -99,7 +103,7 @@ describe("Adventure CoverPhotoSheet", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Automatic/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Use automatic cover/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({}));
   });
@@ -114,11 +118,36 @@ describe("Adventure CoverPhotoSheet", () => {
       />,
     );
     const file = new File([new Uint8Array([1, 2, 3])], "cover.webp", { type: "image/webp" });
+    fireEvent.click(screen.getByRole("radio", { name: "Upload photo" }));
     fireEvent.change(screen.getByLabelText("Upload photo"), { target: { files: [file] } });
     await waitFor(() => expect((screen.getByAltText("Adventure cover preview") as HTMLImageElement).src)
       .toContain("blob:adventure-cover-preview"));
     fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ uploadFile: file }));
-    expect(screen.getAllByRole("button", { name: /^Use .* cover$/ })).toHaveLength(9);
+    expect(screen.queryByLabelText("Category cover choices")).toBeNull();
+  });
+
+  it("does not discard an upload when the source is switched before Save", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CoverPhotoSheet
+        adventure={{ id: "adventure-id", category: "outdoors" }}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    const file = new File([new Uint8Array([7, 8, 9])], "kept.webp", {
+      type: "image/webp",
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Upload photo" }));
+    fireEvent.change(screen.getByLabelText("Upload photo"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Automatic" }));
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "Upload photo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save cover" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ uploadFile: file }));
   });
 });

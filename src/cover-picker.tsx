@@ -5,8 +5,16 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Check } from "lucide-react";
+import { Check, ImagePlus, Link, Sparkles } from "lucide-react";
 import { SafeImage, Sheet } from "./components";
+
+export type CoverSource = "automatic" | "upload" | "url";
+
+const coverSources = [
+  ["automatic", "Automatic", Sparkles],
+  ["upload", "Upload photo", ImagePlus],
+  ["url", "Image URL", Link],
+] as const;
 
 export type CoverPickerOption<Value extends string | number> = {
   value: Value;
@@ -30,7 +38,9 @@ export function CoverPickerSheet<Value extends string | number>({
   saving,
   canSave,
   error,
+  source,
   children,
+  onSelectSource,
   onSelectAutomatic,
   onSelectOption,
   onClose,
@@ -50,7 +60,9 @@ export function CoverPickerSheet<Value extends string | number>({
   saving: boolean;
   canSave: boolean;
   error?: string | null;
+  source: CoverSource;
   children?: ReactNode;
+  onSelectSource: (source: CoverSource) => void;
   onSelectAutomatic: () => void;
   onSelectOption: (value: Value) => void;
   onClose: () => void;
@@ -83,51 +95,98 @@ export function CoverPickerSheet<Value extends string | number>({
           width={1600}
           height={800}
         />
-        <section className="cover-photo-options" aria-labelledby={headingId}>
-          <div>
-            <h3 id={headingId}>{sectionTitle}</h3>
-            <small>{sectionDescription}</small>
-          </div>
-          <button
-            type="button"
-            className="cover-auto-option"
-            aria-pressed={automaticSelected}
-            onClick={onSelectAutomatic}
-          >
-            <span>
-              <strong>Automatic</strong>
-              <small>{automaticDescription}</small>
-            </span>
-            {automaticSelected && <Check aria-hidden="true" />}
-          </button>
-          <div className="cover-variant-row" aria-label={choicesAriaLabel}>
-            {options.map((option) => {
-              const selected = selectedValue === option.value;
+        <fieldset className="cover-source-fieldset">
+          <legend>Cover source</legend>
+          <div className="cover-source-selector" role="radiogroup" aria-label="Cover source">
+            {coverSources.map(([value, label, Icon]) => {
+              const selected = source === value;
               return (
                 <button
                   type="button"
-                  className="cover-variant-option"
-                  aria-label={option.ariaLabel}
-                  aria-pressed={selected}
-                  key={option.value}
-                  onClick={() => onSelectOption(option.value)}
+                  className="cover-source-option"
+                  role="radio"
+                  aria-checked={selected}
+                  data-cover-source={value}
+                  tabIndex={selected ? 0 : -1}
+                  key={value}
+                  onKeyDown={(event) => {
+                    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]
+                      .includes(event.key)) return;
+                    event.preventDefault();
+                    const sources: CoverSource[] = ["automatic", "upload", "url"];
+                    const current = sources.indexOf(value);
+                    const nextIndex = event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? sources.length - 1
+                        : event.key === "ArrowRight" || event.key === "ArrowDown"
+                          ? (current + 1) % sources.length
+                          : (current - 1 + sources.length) % sources.length;
+                    const nextSource = sources[nextIndex];
+                    onSelectSource(nextSource);
+                    event.currentTarget.parentElement
+                      ?.querySelector<HTMLButtonElement>(
+                        `[data-cover-source="${nextSource}"]`,
+                      )
+                      ?.focus();
+                  }}
+                  onClick={() => onSelectSource(value)}
                 >
-                  <SafeImage
-                    src={option.source}
-                    fallbackSrc={fallbackSource}
-                    alt=""
-                    width={1600}
-                    height={800}
-                  />
-                  <span>{option.label}</span>
-                  {selected && (
-                    <Check className="cover-option-check" aria-hidden="true" />
-                  )}
+                  <Icon aria-hidden="true" />
+                  <span>{label}</span>
+                  {selected && <Check className="cover-source-check" aria-hidden="true" />}
                 </button>
               );
             })}
           </div>
-        </section>
+        </fieldset>
+        {source === "automatic" && (
+          <section className="cover-photo-options" aria-labelledby={headingId}>
+            <div>
+              <h3 id={headingId}>{sectionTitle}</h3>
+              <small>{sectionDescription}</small>
+            </div>
+            <button
+              type="button"
+              className="cover-auto-option"
+              aria-pressed={automaticSelected}
+              onClick={onSelectAutomatic}
+            >
+              <span>
+                <strong>Use automatic cover</strong>
+                <small>{automaticDescription}</small>
+              </span>
+              {automaticSelected && <Check aria-hidden="true" />}
+            </button>
+            <div className="cover-variant-row" aria-label={choicesAriaLabel}>
+              {options.map((option) => {
+                const selected = selectedValue === option.value;
+                return (
+                  <button
+                    type="button"
+                    className="cover-variant-option"
+                    aria-label={option.ariaLabel}
+                    aria-pressed={selected}
+                    key={option.value}
+                    onClick={() => onSelectOption(option.value)}
+                  >
+                    <SafeImage
+                      src={option.source}
+                      fallbackSrc={fallbackSource}
+                      alt=""
+                      width={1600}
+                      height={800}
+                    />
+                    <span>{option.label}</span>
+                    {selected && (
+                      <Check className="cover-option-check" aria-hidden="true" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
         {children}
         {error && (
           <p className="form-error" role="alert">

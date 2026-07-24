@@ -156,6 +156,12 @@ describe("completed Memory card previews", () => {
     expect(styles).toMatch(/\.memory-card-preview[\s\S]*max-height:\s*4\.65em/);
     expect(styles).toMatch(/-webkit-line-clamp:\s*3/);
     expect(styles).toMatch(/\.memory-card-preview[\s\S]*overflow:\s*hidden/);
+    const emptyPreview = screen.getByText("No reflection added yet");
+    expect(emptyPreview.closest(".memory-card-preview")?.classList)
+      .toContain("memory-card-preview-empty");
+    expect(emptyPreview.getAttribute("aria-label"))
+      .toBe("No reflection has been added");
+    expect(screen.queryByText("Unrated walk description")).toBeNull();
   });
 
   it("keeps the full shared reflection rendering on Memory detail", () => {
@@ -190,6 +196,8 @@ describe("completed Memory card previews", () => {
     expect(unratedCard.querySelector(".memory-card-photo-count")?.textContent)
       .toBe("Add photos");
     expect(container.querySelectorAll(".memory-card-rating")).toHaveLength(2);
+    expect(styles).toMatch(/@media \(min-width: 601px\)[\s\S]*\.memory-card[\s\S]*height:\s*100%/);
+    expect(styles).toMatch(/\.memory-card-rating-row[\s\S]*margin-top:\s*4px/);
   });
 
   it("keeps long locations separate from ratings and preserves card navigation", async () => {

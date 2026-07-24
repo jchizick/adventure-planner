@@ -99,15 +99,15 @@ describe("Today recent Ideas", () => {
     );
   });
 
-  it("renders the horizontal thumbnail, title, creator, and shared status treatment", () => {
+  it("renders the compact cover and title without status or author metadata", () => {
     renderToday();
 
     const title = screen.getByText("Live gallery visit");
     const card = title.closest("button");
     expect(card).toBeTruthy();
     expect(card?.classList.contains("idea-rail-card")).toBe(true);
-    expect(card?.textContent).toContain("Added by Jordan");
-    expect(card?.querySelector(".status.tentative")?.textContent).toBe("Tentative");
+    expect(card?.textContent).not.toContain("Added by Jordan");
+    expect(card?.textContent).not.toContain("Tentative");
     expect(card?.querySelector("img")?.getAttribute("src")).toBe(
       "/category-art/covers/culture/03.webp",
     );
@@ -115,15 +115,27 @@ describe("Today recent Ideas", () => {
       .toBe(true);
   });
 
-  it("reuses the existing Planned treatment for promoted Ideas", () => {
+  it("shows one tag and the correct overflow while preserving a balanced no-tag zone", () => {
     mocks.useIdeas.mockReturnValue({
-      ideas: [idea({ linkedAdventureId: "adventure-id" })],
+      ideas: [idea({ tags: ["date-night", "seasonal", "rainy-day"] })],
       loading: false,
       error: null,
     });
-    renderToday();
+    const { container } = renderToday();
 
-    expect(screen.getByText("Planned").classList.contains("planned-chip")).toBe(true);
+    expect(screen.getByText("Date Night")).toBeTruthy();
+    expect(screen.getByLabelText("2 more tags").textContent).toBe("+2");
+    expect(screen.queryByText("Seasonal")).toBeNull();
+    expect(container.querySelectorAll(".idea-rail-tags .tag-chip")).toHaveLength(2);
+
+    cleanup();
+    mocks.useIdeas.mockReturnValue({
+      ideas: [idea({ tags: [] })],
+      loading: false,
+      error: null,
+    });
+    const noTagRender = renderToday();
+    expect(noTagRender.container.querySelector(".idea-rail-tag-zone")).toBeTruthy();
   });
 
   it("shows a restrained three-card loading treatment without hiding Today", () => {

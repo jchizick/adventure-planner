@@ -15,9 +15,11 @@ afterEach(cleanup);
 function Picker({
   onClose = vi.fn(),
   onSubmit = vi.fn((event: FormEvent) => event.preventDefault()),
+  onSelectSource = vi.fn(),
 }: {
   onClose?: () => void;
   onSubmit?: (event: FormEvent) => void;
+  onSelectSource?: (source: "automatic" | "upload" | "url") => void;
 }) {
   return (
     <CoverPickerSheet
@@ -29,6 +31,7 @@ function Picker({
       sectionDescription="Choose a cover."
       automaticDescription="Uses a stable cover."
       automaticSelected={false}
+      source="automatic"
       options={[
         {
           value: "first",
@@ -40,6 +43,7 @@ function Picker({
       selectedValue="first"
       saving={false}
       canSave
+      onSelectSource={onSelectSource}
       onSelectAutomatic={vi.fn()}
       onSelectOption={vi.fn()}
       onClose={onClose}
@@ -54,7 +58,10 @@ describe("CoverPickerSheet", () => {
 
     expect(screen.getByRole("img", { name: "Cover preview" }).getAttribute("src"))
       .toBe("/category-art/food-drink-1.webp");
-    expect(screen.getByRole("button", { name: /Automatic/ }).getAttribute("aria-pressed"))
+    expect(screen.getByRole("radio", { name: "Automatic" }).getAttribute("aria-checked"))
+      .toBe("true");
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: /Use automatic cover/ }).getAttribute("aria-pressed"))
       .toBe("false");
     expect(screen.getByRole("button", { name: "Use first cover" }).getAttribute("aria-pressed"))
       .toBe("true");
@@ -95,5 +102,19 @@ describe("CoverPickerSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports radio-group arrow-key source selection", () => {
+    const onSelectSource = vi.fn();
+    render(<Picker onSelectSource={onSelectSource} />);
+    const automatic = screen.getByRole("radio", { name: "Automatic" });
+    automatic.focus();
+
+    fireEvent.keyDown(automatic, { key: "ArrowRight" });
+
+    expect(onSelectSource).toHaveBeenCalledWith("upload");
+    expect(document.activeElement).toBe(
+      screen.getByRole("radio", { name: "Upload photo" }),
+    );
   });
 });

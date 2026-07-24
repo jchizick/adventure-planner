@@ -370,7 +370,9 @@ main {
 .idea-rail-copy {
   min-width: 0;
   display: grid;
-  gap: 8px;
+  grid-template-rows: minmax(0, auto) 22px;
+  align-content: center;
+  gap: 5px;
 }
 .idea-rail-title {
   display: -webkit-box;
@@ -382,23 +384,14 @@ main {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.idea-rail-meta {
+.idea-rail-tag-zone {
   min-width: 0;
+  min-height: 22px;
   display: flex;
   align-items: center;
-  gap: 7px;
 }
-.idea-rail-meta .status,
-.idea-rail-meta .planned-chip {
-  flex: 0 0 auto;
-}
-.idea-rail-meta small {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.idea-rail-tags {
+  max-width: 100%;
 }
 .idea-cover-thumbnail {
   position: relative;
@@ -740,6 +733,11 @@ main {
   text-align: left;
   cursor: pointer;
 }
+.idea-body {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
 .idea-actions {
   position: relative;
   align-self: stretch;
@@ -774,24 +772,45 @@ main {
   border-radius: 13px;
 }
 .idea-body h3 {
+  min-width: 0;
   font-size: 14px;
   margin: 0;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.idea-body p {
-  font-size: 11px;
-  margin: 3px 0 8px;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-.idea-body > div {
+.idea-card-metadata {
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
+}
+.idea-card-metadata .tag-list {
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.idea-card-metadata .tag-chip {
+  min-width: 0;
+  max-width: 112px;
+}
+.idea-card-metadata .status,
+.idea-card-metadata .planned-chip {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .idea-body small {
   font-size: 9px;
   color: var(--text-tertiary);
+}
+.idea-card-author {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .status {
   font-size: 9px;
@@ -1601,6 +1620,73 @@ main {
   padding: 2px 4px 4px 2px;
   overflow-y: auto;
 }
+.cover-source-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.cover-source-fieldset legend {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+.cover-source-selector {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface-soft, #f5efe8);
+}
+.cover-source-option {
+  position: relative;
+  min-width: 0;
+  min-height: 68px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 9px 7px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.cover-source-option > svg:first-child {
+  width: 20px;
+  height: 20px;
+}
+.cover-source-option[aria-checked="true"] {
+  border-color: var(--coral);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 5px rgba(73, 58, 43, 0.08);
+}
+.cover-source-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 15px;
+  height: 15px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: white;
+}
+.cover-source-content {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft, #f8f5f1);
+}
 .calendar-export {
   display: grid;
   gap: 12px;
@@ -1764,6 +1850,13 @@ main {
   line-height: 1.45;
 }
 @media (max-width: 600px) {
+  .idea-body h3 {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
   .cover-variant-row {
     grid-template-columns: none;
     grid-auto-flow: column;
@@ -2737,7 +2830,6 @@ main {
   gap: 12px;
 }
 .memory-card {
-  min-height: 390px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2760,7 +2852,6 @@ main {
   color: var(--text-tertiary);
 }
 .memory-card h3 {
-  min-height: 2.5em;
   max-height: 2.5em;
   margin: 5px 0 7px;
   overflow: hidden;
@@ -2773,7 +2864,6 @@ main {
   overflow-wrap: anywhere;
 }
 .memory-card-preview {
-  min-height: 4.65em;
   max-height: 4.65em;
   margin: 0;
   overflow: hidden;
@@ -2781,6 +2871,10 @@ main {
   line-height: 1.55;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
+}
+.memory-card-preview-empty {
+  color: var(--text-tertiary);
+  font-style: italic;
 }
 @supports (-webkit-line-clamp: 3) {
   .memory-card-preview {
@@ -2794,7 +2888,7 @@ main {
   min-width: 0;
   display: grid;
   gap: 5px;
-  margin-top: auto;
+  margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--divider);
 }
@@ -2818,6 +2912,22 @@ main {
   min-height: 18px;
   display: flex;
   align-items: center;
+  margin-top: 4px;
+}
+@media (min-width: 601px) {
+  .memory-card {
+    min-height: 390px;
+    height: 100%;
+  }
+  .memory-card h3 {
+    min-height: 2.5em;
+  }
+  .memory-card-preview {
+    min-height: 4.65em;
+  }
+  .memory-card-footer {
+    margin-top: auto;
+  }
 }
 .empty-memory {
   grid-column: 1 / -1;

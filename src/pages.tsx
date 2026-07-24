@@ -105,7 +105,11 @@ import {
 } from "./tag-model";
 import { IdeaCoverPicker } from "./idea-cover-picker";
 import { getIdeaCoverPreset, isIdeaCoverPresetId, resolveIdeaCoverPreset } from "./idea-covers";
-import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
+import {
+  CoverPickerSheet,
+  type CoverPickerOption,
+  type CoverSource,
+} from "./cover-picker";
 import { validateCoverFile } from "./cover-storage";
 import { useWorkspace } from "./workspace";
 import {
@@ -440,16 +444,8 @@ export function Today() {
               />
               <span className="idea-rail-copy">
                 <span className="idea-rail-title">{idea.title}</span>
-                <TagList tags={idea.tags} limit={1} className="idea-rail-tags" />
-                <span className="idea-rail-meta">
-                  {idea.linkedAdventureId ? (
-                    <span className="planned-chip">
-                      <Check aria-hidden="true" /> Planned
-                    </span>
-                  ) : (
-                    <StatusChip status={idea.status} />
-                  )}
-                  <small>Added by {idea.addedBy}</small>
+                <span className="idea-rail-tag-zone">
+                  <TagList tags={idea.tags} limit={1} className="idea-rail-tags" />
                 </span>
               </span>
             </button>
@@ -649,13 +645,15 @@ function AdvancedFiltersPopover({
   );
 }
 
-type IdeaMenuAction = "edit" | "duplicate";
+type IdeaMenuAction = "edit" | "duplicate" | "delete";
 
 function IdeaActionsMenu({
   ideaTitle,
+  canDelete,
   onAction,
 }: {
   ideaTitle: string;
+  canDelete: boolean;
   onAction: (action: IdeaMenuAction) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -738,6 +736,16 @@ function IdeaActionsMenu({
           <button role="menuitem" type="button" onClick={() => choose("duplicate")}>
             <Copy aria-hidden="true" /> Duplicate idea
           </button>
+          {canDelete && (
+            <button
+              role="menuitem"
+              type="button"
+              className="destructive"
+              onClick={() => choose("delete")}
+            >
+              <Trash2 aria-hidden="true" /> Delete idea
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -759,6 +767,7 @@ type IdeaEditorState = {
   idea: Idea;
   mode: IdeaDraftScope["mode"];
   sourceIdeaId?: string;
+  confirmDelete?: boolean;
 };
 
 export function Ideas() {
@@ -913,18 +922,21 @@ export function Ideas() {
                 />
                 <div className="idea-body">
                   <h3>{i.title}</h3>
-                  <p>{i.description}</p>
-                  <TagList tags={i.tags} limit={2} />
-                  <div>
+                  <div className="idea-card-metadata">
+                    <TagList tags={i.tags} limit={2} />
                     {i.linkedAdventureId ? (
                       <span className="planned-chip">
-                        <Check /> Planned
+                        <Check aria-hidden="true" /> Planned
                       </span>
                     ) : (
                       <StatusChip status={i.status} />
                     )}
-                    <small>Added by {i.addedByUserId ? creatorNames.get(i.addedByUserId) || i.addedBy : i.addedBy}</small>
                   </div>
+                  <small className="idea-card-author">
+                    Added by {i.addedByUserId
+                      ? creatorNames.get(i.addedByUserId) || i.addedBy
+                      : i.addedBy}
+                  </small>
                   {!i.linkedAdventureId && i.proposedStartDate && (
                     <small className="idea-proposed-date">
                       Proposed · {formatAdventureDateTimeRange({
@@ -939,9 +951,18 @@ export function Ideas() {
               </button>
               <IdeaActionsMenu
                 ideaTitle={i.title}
+                canDelete={canDeleteIdeas}
                 onAction={(action) => {
                   if (action === "edit") {
                     setEditor({ idea: i, mode: "edit" });
+                    return;
+                  }
+                  if (action === "delete") {
+                    setEditor({
+                      idea: i,
+                      mode: "edit",
+                      confirmDelete: true,
+                    });
                     return;
                   }
                   setEditor({
@@ -965,6 +986,7 @@ export function Ideas() {
       <IdeaSheet
         idea={editor?.idea ?? null}
         mode={editor?.mode}
+        confirmDeleteOnOpen={editor?.confirmDelete}
         draftScope={profile && activeSpace ? {
           userId: profile.id,
           spaceId: activeSpace.id,
@@ -1009,6 +1031,7 @@ export function Ideas() {
 type IdeaSheetProps = {
   idea: Idea | null;
   mode?: IdeaDraftScope["mode"];
+  confirmDeleteOnOpen?: boolean;
   draftScope?: IdeaDraftScope;
   onClose: () => void;
   onSave: (i: Idea) => Promise<Idea | void>;
@@ -1020,13 +1043,14 @@ type IdeaSheetProps = {
 
 export function IdeaSheet(props: IdeaSheetProps) {
   if (!props.idea) return null;
-  const key = `${props.draftScope?.userId ?? "none"}:${props.draftScope?.spaceId ?? "none"}:${props.mode ?? props.draftScope?.mode ?? "none"}:${props.idea.id || "new"}`;
+  const key = `${props.draftScope?.userId ?? "none"}:${props.draftScope?.spaceId ?? "none"}:${props.mode ?? props.draftScope?.mode ?? "none"}:${props.idea.id || "new"}:${props.confirmDeleteOnOpen ? "delete" : "edit"}`;
   return <IdeaSheetContent key={key} {...props} idea={props.idea} />;
 }
 
 function IdeaSheetContent({
   idea,
   mode,
+  confirmDeleteOnOpen = false,
   draftScope,
   onClose,
   onSave,
@@ -1064,7 +1088,7 @@ function IdeaSheetContent({
   const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(confirmDeleteOnOpen);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [changingCover, setChangingCover] = useState(false);
@@ -2481,7 +2505,7 @@ export function CoverPhotoSheet({
   onClose: () => void;
   onSave: (selection: AdventureCoverSelection) => Promise<void>;
 }) {
-  type CoverMode = "automatic" | "custom" | "uploaded" | string;
+  type AutomaticCover = "automatic" | string;
   type CustomStatus = "idle" | "loading" | "valid" | "invalid";
   const currentCover = adventure.coverImage?.trim() || "";
   const currentVariant = adventure.coverVariant;
@@ -2495,21 +2519,25 @@ export function CoverPhotoSheet({
       categoryCoverAssets.some(({ path }) => path === currentCover)
     ? currentCover
     : currentVariantCover;
-  const initialMode: CoverMode = adventure.coverStoragePath || adventure.pendingCoverFile
-    ? "uploaded"
+  const initialSource: CoverSource = adventure.coverStoragePath || adventure.pendingCoverFile
+    ? "upload"
     : currentCover
-    ? currentLibraryCover ?? "custom"
-    : currentLibraryCover ?? "automatic";
+    ? currentLibraryCover ? "automatic" : "url"
+    : "automatic";
+  const initialAutomaticCover: AutomaticCover =
+    currentLibraryCover ?? "automatic";
   const automaticCover = getStableCategoryCover(
     adventure.category,
     adventure.id,
   );
-  const [mode, setMode] = useState<CoverMode>(initialMode);
+  const [source, setSource] = useState<CoverSource>(initialSource);
+  const [automaticCoverSelection, setAutomaticCoverSelection] =
+    useState<AutomaticCover>(initialAutomaticCover);
   const [coverImage, setCoverImage] = useState(
-    initialMode === "custom" ? currentCover : "",
+    initialSource === "url" ? currentCover : "",
   );
   const [customStatus, setCustomStatus] = useState<CustomStatus>(
-    initialMode === "custom"
+    initialSource === "url"
       ? /^https?:\/\//i.test(currentCover) || currentCover.startsWith("/")
         ? "loading"
         : "invalid"
@@ -2527,23 +2555,26 @@ export function CoverPhotoSheet({
   const trimmed = coverImage.trim();
   const isSupported =
     !trimmed || /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/");
-  const selectedLibraryCover = mode !== "automatic" && mode !== "custom"
-      && mode !== "uploaded" ? mode
+  const selectedLibraryCover = automaticCoverSelection !== "automatic"
+      ? automaticCoverSelection
     : undefined;
-  const preview = mode === "uploaded"
+  const preview = source === "upload"
     ? uploadPreview || adventure.coverUrl || lastValidPreview
-    : mode === "custom" && isSupported && trimmed &&
+    : source === "url" && isSupported && trimmed &&
       customStatus !== "invalid"
     ? trimmed
-    : selectedLibraryCover ?? (mode === "custom"
+    : selectedLibraryCover ?? (source === "url"
       ? lastValidPreview
       : automaticCover);
-  const isDirty = mode !== initialMode || Boolean(uploadFile) ||
-    (mode === "custom" && trimmed !==
-      (initialMode === "custom" ? currentCover : ""));
+  const isDirty = source !== initialSource ||
+    (source === "automatic" &&
+      automaticCoverSelection !== initialAutomaticCover) ||
+    Boolean(uploadFile) ||
+    (source === "url" && trimmed !==
+      (initialSource === "url" ? currentCover : ""));
   const canSave = isDirty && !saving &&
-    (mode !== "custom" || isSupported && customStatus === "valid") &&
-    (mode !== "uploaded" || Boolean(uploadFile || adventure.coverStoragePath));
+    (source !== "url" || isSupported && customStatus === "valid") &&
+    (source !== "upload" || Boolean(uploadFile || adventure.coverStoragePath));
   const variantOptions = categoryCoverAssets.map<CoverPickerOption<string>>(
     (asset) => ({
     value: asset.path,
@@ -2553,7 +2584,7 @@ export function CoverPhotoSheet({
   }));
 
   useEffect(() => {
-    if (mode !== "custom" || !trimmed || !isSupported) return;
+    if (source !== "url" || !trimmed || !isSupported) return;
     let active = true;
     const image = new Image();
     image.onload = () => {
@@ -2571,7 +2602,7 @@ export function CoverPhotoSheet({
     return () => {
       active = false;
     };
-  }, [isSupported, mode, trimmed]);
+  }, [isSupported, source, trimmed]);
 
   useEffect(() => {
     return () => { if (uploadPreview) URL.revokeObjectURL(uploadPreview); };
@@ -2580,7 +2611,7 @@ export function CoverPhotoSheet({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!canSave) {
-      if (mode === "custom" && !isSupported)
+      if (source === "url" && !isSupported)
         setError("Enter an http(s) image URL or an app image path beginning with /.");
       return;
     }
@@ -2588,21 +2619,21 @@ export function CoverPhotoSheet({
     setError(null);
     try {
       await onSave(
-        mode === "uploaded"
+        source === "upload"
           ? uploadFile
             ? { uploadFile }
             : { coverStoragePath: adventure.coverStoragePath, coverUrl: adventure.coverUrl }
-        : mode === "custom"
+        : source === "url"
           ? { coverImage: trimmed }
-          : mode === "automatic"
+          : automaticCoverSelection === "automatic"
           ? {}
           : (() => {
             const originalIndex = categoryCoverAssets
               .slice(0, 3)
-              .findIndex(({ path }) => path === mode);
+              .findIndex(({ path }) => path === automaticCoverSelection);
             return originalIndex >= 0
               ? { coverVariant: (originalIndex + 1) as AdventureCoverVariant }
-              : { coverImage: mode };
+              : { coverImage: automaticCoverSelection };
           })(),
       );
     } catch (nextError) {
@@ -2624,33 +2655,33 @@ export function CoverPhotoSheet({
       sectionTitle="Category covers"
       sectionDescription="Choose a cover for this adventure, or keep the automatic rotation."
       automaticDescription="Uses a stable category cover for this adventure."
-      automaticSelected={mode === "automatic"}
+      automaticSelected={automaticCoverSelection === "automatic"}
       options={variantOptions}
       choicesAriaLabel="Category cover choices"
       selectedValue={selectedLibraryCover}
+      source={source}
       saving={saving}
       canSave={canSave}
       error={error}
+      onSelectSource={(nextSource) => {
+        setSource(nextSource);
+        setError(null);
+      }}
       onSelectAutomatic={() => {
-        setMode("automatic");
-        setCoverImage("");
-        setUploadFile(undefined);
-        setUploadPreview(undefined);
+        setAutomaticCoverSelection("automatic");
         setCustomStatus("idle");
         setError(null);
       }}
       onSelectOption={(path) => {
-        setMode(path);
-        setCoverImage("");
-        setUploadFile(undefined);
-        setUploadPreview(undefined);
+        setAutomaticCoverSelection(path);
         setCustomStatus("idle");
         setError(null);
       }}
       onClose={onClose}
       onSubmit={(event) => void submit(event)}
     >
-      <div className="cover-upload-controls">
+      {source === "upload" && <div className="cover-source-content">
+        <div className="cover-upload-controls">
         <label className="cover-upload-button">
           <ImagePlus aria-hidden="true" />
           {adventure.coverStoragePath || uploadFile ? "Replace photo" : "Upload photo"}
@@ -2666,8 +2697,7 @@ export function CoverPhotoSheet({
                 validateCoverFile(file);
                 setUploadFile(file);
                 setUploadPreview(URL.createObjectURL(file));
-                setMode("uploaded");
-                setCoverImage("");
+                setSource("upload");
                 setError(null);
               } catch (nextError) {
                 setError(nextError instanceof Error ? nextError.message : "Choose another image.");
@@ -2675,16 +2705,19 @@ export function CoverPhotoSheet({
             }}
           />
         </label>
-        {(adventure.coverStoragePath || uploadFile) && mode === "uploaded" && (
+        {(adventure.coverStoragePath || uploadFile) && (
           <button type="button" className="text-action" onClick={() => {
             setUploadFile(undefined);
             setUploadPreview(undefined);
-            setMode("automatic");
+            setSource("automatic");
             setError(null);
           }}>Remove photo</button>
         )}
-      </div>
-      <label className="cover-custom-url">
+        </div>
+        <small>JPEG, PNG, or WebP. Photos are resized before upload; maximum source size 10 MB.</small>
+      </div>}
+      {source === "url" && <div className="cover-source-content">
+        <label className="cover-custom-url">
         Custom image URL
         <input
           type="url"
@@ -2695,21 +2728,19 @@ export function CoverPhotoSheet({
             const nextSupported = /^https?:\/\//i.test(nextTrimmed) ||
               nextTrimmed.startsWith("/");
             setCoverImage(nextValue);
-            setUploadFile(undefined);
-            setUploadPreview(undefined);
-            setMode(nextTrimmed ? "custom" : "automatic");
             setCustomStatus(
               nextTrimmed ? nextSupported ? "loading" : "invalid" : "idle",
             );
             setError(null);
           }}
           placeholder="https://example.com/adventure.jpg"
-          aria-invalid={mode === "custom" && customStatus === "invalid"}
+          aria-invalid={customStatus === "invalid"}
         />
-      </label>
-      <small>
+        </label>
+        <small>
         Paste an http(s) image URL. A valid custom image overrides category covers.
-      </small>
+        </small>
+      </div>}
     </CoverPickerSheet>
   );
 }
@@ -3818,8 +3849,17 @@ export function CompletedMemoryCard({
         endTime: adventure.endTime,
       })}</small>
       <h3>{adventure.title}</h3>
-      <p className="memory-card-preview">
-        {summary?.reflection || adventure.notes || adventure.description || adventure.location}
+      <p
+        className={[
+          "memory-card-preview",
+          summary?.reflection ? "" : "memory-card-preview-empty",
+        ].filter(Boolean).join(" ")}
+      >
+        {summary?.reflection || (
+          <span aria-label="No reflection has been added">
+            No reflection added yet
+          </span>
+        )}
       </p>
       <div className="memory-card-footer">
         <span className="memory-card-location">{adventure.location}</span>
