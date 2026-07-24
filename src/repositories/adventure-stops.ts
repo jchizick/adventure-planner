@@ -15,6 +15,7 @@ export type StopRow = {
   id: string;
   adventure_id: string;
   title: string;
+  day_date: string;
   location: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -37,7 +38,7 @@ export type StopDraft = Omit<
   "id" | "sortOrder" | "savedLocation"
 > & { locationDraft?: LocationDraft };
 export const stopColumns =
-  "id, adventure_id, title, location, latitude, longitude, timezone, geocoded_location, location_provider, location_provider_id, location_address, location_source, location_confirmed_at, start_time, end_time, notes, sort_order, travel_time_minutes";
+  "id, adventure_id, title, day_date, location, latitude, longitude, timezone, geocoded_location, location_provider, location_provider_id, location_address, location_source, location_confirmed_at, start_time, end_time, notes, sort_order, travel_time_minutes";
 
 function displayTime(value: string | null) {
   if (!value) return "";
@@ -65,6 +66,7 @@ export function mapStop(row: StopRow): AdventureStop {
   return {
     id: row.id,
     title: row.title,
+    dayDate: row.day_date,
     location: row.location ?? "",
     savedLocation: mapSavedLocation(row),
     startTime: displayTime(row.start_time),
@@ -92,6 +94,7 @@ export function stopLocationPayload(
 function writable(draft: StopDraft, previous?: SavedLocation) {
   return {
     title: draft.title.trim(),
+    day_date: draft.dayDate,
     ...stopLocationPayload(draft, previous),
     start_time: inputTime(draft.startTime),
     end_time: inputTime(draft.endTime ?? ""),

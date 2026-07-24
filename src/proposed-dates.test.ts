@@ -3,7 +3,10 @@ import {
   expandCalendarEventRanges,
   formatAdventureDateTimeRange,
   formatAdventureCountdown,
+  adventureEffectiveEnd,
+  isAdventureHappeningNow,
   isAdventureMemoryEligible,
+  isAdventureUpcomingOrActive,
   validateDateTimeRange,
 } from "./calendar";
 import { duplicateIdeaForEditing } from "./idea-model";
@@ -19,10 +22,21 @@ describe("proposed dates and multi-day Adventures", () => {
     expect(formatAdventureDateTimeRange({ startDate: "2026-12-31", endDate: "2027-01-02" })).toBe("Dec 31, 2026 – Jan 2, 2027");
   });
 
-  it("enforces dependent and ordered optional proposal values", () => {
-    expect(validateDateTimeRange({ endTime: "12:00", requireStartDate: false })).toMatchObject({ startDate: expect.any(String), endDate: expect.any(String) });
+  it("accepts a timed single day and enforces time dependencies and ordering", () => {
+    expect(validateDateTimeRange({
+      startDate: "2026-07-26",
+      startTime: "14:00",
+      endTime: "16:30",
+    })).toEqual({});
+    expect(validateDateTimeRange({
+      startDate: "2026-07-26",
+      endTime: "16:30",
+    })).toHaveProperty("startTime");
+    expect(validateDateTimeRange({ endTime: "12:00", requireStartDate: false }))
+      .toMatchObject({ startDate: expect.any(String), startTime: expect.any(String) });
     expect(validateDateTimeRange({ startDate: "2026-08-16", endDate: "2026-08-14" })).toHaveProperty("endDate");
     expect(validateDateTimeRange({ startDate: "2026-08-14", endDate: "2026-08-14", startTime: "18:00", endTime: "17:00" })).toHaveProperty("endTime");
+    expect(validateDateTimeRange({ startDate: "2026-08-14", startTime: "18:00", endTime: "18:00" })).toHaveProperty("endTime");
   });
 
   it("expands proposals across every calendar day", () => {
@@ -35,6 +49,33 @@ describe("proposed dates and multi-day Adventures", () => {
     expect(formatAdventureCountdown("2026-08-14", "", undefined, new Date(2026, 7, 15, 9), "2026-08-16").state).toBe("happening");
     expect(isAdventureMemoryEligible({ date: "2026-08-14", endDate: "2026-08-16", endTime: "11:00 AM" }, new Date(2026, 7, 16, 10))).toBe(false);
     expect(isAdventureMemoryEligible({ date: "2026-08-14", endDate: "2026-08-16", endTime: "11:00 AM" }, new Date(2026, 7, 16, 12))).toBe(true);
+  });
+
+  it("keeps a timed single-day Adventure active and memory-locked until its end", () => {
+    const adventure = {
+      date: "2026-07-26",
+      startTime: "11:30 AM",
+      endTime: "4:30 PM",
+    };
+    expect(adventureEffectiveEnd(adventure)).toEqual(
+      new Date(2026, 6, 26, 16, 30),
+    );
+    expect(isAdventureHappeningNow(
+      adventure,
+      new Date(2026, 6, 26, 16, 29),
+    )).toBe(true);
+    expect(isAdventureHappeningNow(
+      adventure,
+      new Date(2026, 6, 26, 16, 30),
+    )).toBe(false);
+    expect(isAdventureUpcomingOrActive(
+      adventure,
+      new Date(2026, 6, 26, 16, 31),
+    )).toBe(false);
+    expect(isAdventureMemoryEligible(adventure, new Date(2026, 6, 26, 16, 29)))
+      .toBe(false);
+    expect(isAdventureMemoryEligible(adventure, new Date(2026, 6, 26, 16, 30)))
+      .toBe(true);
   });
 
   it("clears proposal values when duplicating an Idea", () => {

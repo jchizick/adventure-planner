@@ -91,6 +91,7 @@ import {
   expandCalendarEventRanges,
   isAdventureHappeningNow,
   isAdventureMemoryEligible,
+  isAdventureUpcomingOrActive,
   monthForDate,
   parseLocalDate,
   sortCalendarEvents,
@@ -116,6 +117,11 @@ import {
   prepareStopMap,
   reconcileSelectedStopId,
 } from "./adventure-stops-map";
+import {
+  buildAdventureDayOptions,
+  groupStopsByDay,
+  sortStopsByDayAndOrder,
+} from "./itinerary";
 import type { StopDraft } from "./repositories/adventure-stops";
 import type {
   Adventure,
@@ -211,9 +217,8 @@ export function Today() {
   const [creating, setCreating] = useState(false);
   const recentIdeas = useMemo(() => selectRecentIdeas(ideas), [ideas]);
   const now = new Date();
-  const todayKey = toLocalDateKey(now);
   const upcoming = [...adventures]
-    .filter((a) => !a.completed && (isAdventureHappeningNow(a, now) || a.date >= todayKey))
+    .filter((a) => !a.completed && isAdventureUpcomingOrActive(a, now))
     .sort((a, b) => {
       const activeDifference = Number(isAdventureHappeningNow(b, now)) - Number(isAdventureHappeningNow(a, now));
       return activeDifference || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
@@ -1415,7 +1420,7 @@ type AdventureFormErrors = Partial<
   Record<"title" | "date" | "startTime" | "endDate" | "endTime" | "form", string>
 >;
 
-function AdventureFormSheet({
+export function AdventureFormSheet({
   title,
   idea,
   initialPlan,
@@ -1620,11 +1625,23 @@ function AdventureFormSheet({
               aria-label="Adventure start time"
               type="time"
               value={plan.startTime}
-              onChange={(event) => update("startTime", event.target.value)}
+              onChange={(event) => {
+                const startTime = event.target.value;
+                setPlan((current) => ({
+                  ...current,
+                  startTime,
+                  endTime: startTime ? current.endTime : "",
+                }));
+              }}
               aria-invalid={!!errors.startTime}
+              aria-describedby={
+                errors.startTime ? "adventure-start-time-error" : undefined
+              }
             />
             {errors.startTime && (
-              <span className="field-error">{errors.startTime}</span>
+              <span className="field-error" id="adventure-start-time-error">
+                {errors.startTime}
+              </span>
             )}
           </label>
           <label>
@@ -1634,15 +1651,20 @@ function AdventureFormSheet({
               type="date"
               min={plan.date}
               value={plan.endDate}
-              onChange={(event) => {
-                const endDate = event.target.value;
-                setPlan((current) => ({ ...current, endDate, endTime: endDate ? current.endTime : "" }));
-              }}
+              onChange={(event) => update("endDate", event.target.value)}
               aria-invalid={!!errors.endDate}
+              aria-describedby={`adventure-end-date-help${errors.endDate ? " adventure-end-date-error" : ""}`}
             />
-            {errors.endDate && <span className="field-error">{errors.endDate}</span>}
+            <span className="field-help" id="adventure-end-date-help">
+              Leave blank for a single-day Adventure.
+            </span>
+            {errors.endDate && (
+              <span className="field-error" id="adventure-end-date-error">
+                {errors.endDate}
+              </span>
+            )}
           </label>
-          {plan.endDate && <label>
+          <label>
             End time <span className="optional-label">Optional</span>
             <input
               aria-label="Adventure end time"
@@ -1650,11 +1672,17 @@ function AdventureFormSheet({
               value={plan.endTime}
               onChange={(event) => update("endTime", event.target.value)}
               aria-invalid={!!errors.endTime}
+              aria-describedby={`adventure-end-time-help${errors.endTime ? " adventure-end-time-error" : ""}`}
             />
+            <span className="field-help" id="adventure-end-time-help">
+              Applies to the start date when no end date is selected.
+            </span>
             {errors.endTime && (
-              <span className="field-error">{errors.endTime}</span>
+              <span className="field-error" id="adventure-end-time-error">
+                {errors.endTime}
+              </span>
             )}
-          </label>}
+          </label>
         </div>
         <LocationSearchField
           id="adventure-location"
@@ -1970,6 +1998,7 @@ export function Calendar() {
 
 type StopFormValue = {
   title: string;
+  dayDate: string;
   location: string;
   startTime: string;
   endTime: string;
@@ -1995,13 +2024,17 @@ const timeFromInput = (value: string) => {
   return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 };
 
-function StopEditorSheet({
+export function StopEditorSheet({
   adventureId,
+  adventureDate,
+  adventureEndDate,
   stop,
   onClose,
   onSave,
 }: {
   adventureId: string;
+  adventureDate: string;
+  adventureEndDate?: string;
   stop?: AdventureStop;
   onClose: () => void;
   onSave: (stop: StopDraft) => Promise<void>;
@@ -2011,8 +2044,17 @@ function StopEditorSheet({
     kind: "none",
     label: "",
   };
+  const dayOptions = buildAdventureDayOptions(
+    adventureDate,
+    adventureEndDate,
+  );
+  const isMultiDay = dayOptions.length > 1;
   const [value, setValue] = useState<StopFormValue>(() => ({
     title: stop?.title || "",
+    dayDate:
+      stop?.dayDate && dayOptions.some(({ value }) => value === stop.dayDate)
+        ? stop.dayDate
+        : dayOptions[0]?.value ?? "",
     location: stop?.location || "",
     startTime: timeToInput(stop?.startTime),
     endTime: timeToInput(stop?.endTime),
@@ -2022,6 +2064,7 @@ function StopEditorSheet({
   }));
   const [errors, setErrors] = useState<{
     title?: string;
+    dayDate?: string;
     endTime?: string;
     travelMinutes?: string;
     form?: string;
@@ -2036,6 +2079,8 @@ function StopEditorSheet({
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (!value.title.trim()) nextErrors.title = "Enter a stop title.";
+    if (!dayOptions.some(({ value: option }) => option === value.dayDate))
+      nextErrors.dayDate = "Choose a valid Adventure day.";
     if (value.endTime && value.startTime && value.endTime < value.startTime)
       nextErrors.endTime = "End time must be later than the start time.";
     if (value.travelMinutes && Number(value.travelMinutes) < 0)
@@ -2046,6 +2091,7 @@ function StopEditorSheet({
     try {
       await onSave({
         title: value.title.trim(),
+        dayDate: value.dayDate,
         location: value.location.trim(),
         startTime: timeFromInput(value.startTime),
         endTime: timeFromInput(value.endTime) || undefined,
@@ -2088,6 +2134,29 @@ function StopEditorSheet({
             </span>
           )}
         </label>
+        {isMultiDay && (
+          <label>
+            Day
+            <select
+              aria-label="Day"
+              value={value.dayDate}
+              onChange={(event) => update("dayDate", event.target.value)}
+              aria-invalid={!!errors.dayDate}
+              aria-describedby={errors.dayDate ? "stop-day-error" : undefined}
+            >
+              {dayOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.dayDate && (
+              <span className="field-error" id="stop-day-error">
+                {errors.dayDate}
+              </span>
+            )}
+          </label>
+        )}
         <LocationSearchField
           id="stop-location"
           spaceId={activeSpace?.id ?? ""}
@@ -2646,11 +2715,12 @@ export function AdventureDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const orderedStops = useMemo(
-    () =>
-      [...(a?.stops ?? [])].sort(
-        (first, second) => first.sortOrder - second.sortOrder,
-      ),
-    [a?.stops],
+    () => sortStopsByDayAndOrder(a?.stops ?? [], a?.date ?? ""),
+    [a?.date, a?.stops],
+  );
+  const itineraryDayGroups = useMemo(
+    () => groupStopsByDay(a?.stops ?? [], a?.date ?? "", a?.endDate),
+    [a?.date, a?.endDate, a?.stops],
   );
   const preparedStopMap = useMemo(
     () => prepareStopMap(orderedStops),
@@ -2699,6 +2769,10 @@ export function AdventureDetail() {
   );
   const canMutate = memberships.some(
     (membership) => membership.spaceId === activeSpace?.id,
+  );
+  const isMultiDayAdventure = Boolean(a.endDate && a.endDate > a.date);
+  const stopIndexById = new Map(
+    orderedStops.map((stop, index) => [stop.id, index]),
   );
   const handleAdventureAction = (action: AdventureMenuAction) => {
     setActionError(null);
@@ -2825,8 +2899,18 @@ export function AdventureDetail() {
               />
             )}
             {orderedStops.length ? (
-              <div className="stops">
-                {orderedStops.map((stop, index) => {
+              <div className="itinerary-days">
+                {itineraryDayGroups.map((group) => (
+                  <section className="itinerary-day-group" key={group.value}>
+                    {isMultiDayAdventure && (
+                      <header>
+                        <h3>Day {group.dayNumber}</h3>
+                        <p>{group.longLabel}</p>
+                      </header>
+                    )}
+                    <div className="stops">
+                {group.stops.map((stop, dayIndex) => {
+                  const index = stopIndexById.get(stop.id) ?? 0;
                   const mapMarker = mapMarkersByStopId.get(stop.id);
                   const selected = activeSelectedStopId === stop.id;
                   return (
@@ -2848,7 +2932,9 @@ export function AdventureDetail() {
                       }
                     />
                     <div className="stop-main">
-                      <h3>{stop.title}</h3>
+                      {isMultiDayAdventure
+                        ? <h4>{stop.title}</h4>
+                        : <h3>{stop.title}</h3>}
                       <p>{stop.location || "Location to be decided"}</p>
                       {stop.notes && (
                         <small className="stop-notes">{stop.notes}</small>
@@ -2868,14 +2954,14 @@ export function AdventureDetail() {
                     <div className="stop-actions">
                       <button
                         onClick={() => reorderAdventureStops(a.id, stop.id, -1)}
-                        disabled={index === 0}
+                        disabled={dayIndex === 0}
                         aria-label={`Move ${stop.title} up`}
                       >
                         <ChevronUp />
                       </button>
                       <button
                         onClick={() => reorderAdventureStops(a.id, stop.id, 1)}
-                        disabled={index === orderedStops.length - 1}
+                        disabled={dayIndex === group.stops.length - 1}
                         aria-label={`Move ${stop.title} down`}
                       >
                         <ChevronDown />
@@ -2897,6 +2983,9 @@ export function AdventureDetail() {
                     </article>
                   );
                 })}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
               <div className="empty-itinerary">
@@ -2965,6 +3054,8 @@ export function AdventureDetail() {
           <StopEditorSheet
             key={stopEditor.stop?.id || "new-stop"}
             adventureId={a.id}
+            adventureDate={a.date}
+            adventureEndDate={a.endDate}
             stop={stopEditor.stop}
             onClose={() => setStopEditor(null)}
             onSave={async (stop) => {
@@ -3021,7 +3112,7 @@ export function AdventureDetail() {
               title: a.title,
               description: a.description,
               date: a.date,
-              endDate: a.endDate ?? (a.endTime ? a.date : ""),
+              endDate: a.endDate ?? "",
               startTime: timeToInput(a.startTime),
               endTime: timeToInput(a.endTime),
               status: a.status === "Tentative" ? "Tentative" : "Confirmed",

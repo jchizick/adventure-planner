@@ -1189,6 +1189,15 @@ main {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.form-row > label {
+  min-width: 0;
+}
+.field-help {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
 .primary,
 .secondary,
 .complete-button {
@@ -2143,6 +2152,30 @@ main {
 .itinerary-toolbar > button svg {
   width: 16px;
 }
+.itinerary-days {
+  display: grid;
+  gap: 20px;
+}
+.itinerary-day-group {
+  min-width: 0;
+}
+.itinerary-day-group > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 2px 9px;
+}
+.itinerary-day-group > header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.itinerary-day-group > header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
 .stops article {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
@@ -2256,7 +2289,8 @@ main {
   height: 11px;
   stroke-width: 2.7;
 }
-.stops h3 {
+.stops h3,
+.stops h4 {
   font-size: 13px;
   margin: 0;
   font-weight: 500;

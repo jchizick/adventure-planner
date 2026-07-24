@@ -30,7 +30,12 @@ import {
   updateStop,
   type StopDraft,
 } from "./repositories/adventure-stops";
-import { insertStopChronologically, timeToMinutes } from "./itinerary";
+import {
+  insertStopChronologically,
+  reconcileStopDaysForAdventureRange,
+  sortStopsByDayAndOrder,
+  timeToMinutes,
+} from "./itinerary";
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -157,13 +162,16 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", refresh);
   }, [adventures]);
 
-  const replaceAdventure = useCallback((next: Adventure) => {
+  const replaceAdventure = useCallback((
+    next: Adventure,
+    stopsOverride?: AdventureStop[],
+  ) => {
     setAdventures((current) =>
       current.map((adventure) =>
         adventure.id === next.id
           ? {
               ...next,
-              stops: adventure.stops,
+              stops: stopsOverride ?? adventure.stops,
               checklist: adventure.checklist,
               links: adventure.links,
             }
@@ -283,15 +291,30 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
           throw new Error("Open your shared space and try again.");
         const current = adventures.find((adventure) => adventure.id === id);
         if (!current) throw new Error("Adventure not found.");
-        replaceAdventure(
-          await updateAdventureRow(
+        const reconciliation = reconcileStopDaysForAdventureRange(
+          current.stops,
+          current.date,
+          plan.date,
+          plan.endDate || undefined,
+        );
+        if (!reconciliation.ok) {
+          const names = reconciliation.affectedTitles.slice(0, 3).join(", ");
+          const remaining = reconciliation.affectedTitles.length - 3;
+          throw new Error(
+            `Reassign or delete itinerary stops on removed days first: ${names}${remaining > 0 ? ` and ${remaining} more` : ""}.`,
+          );
+        }
+        const saved = await updateAdventureRow(
             activeSpace.id,
             id,
             user.id,
             plan,
             current.completed,
             current,
-          ),
+          );
+        replaceAdventure(
+          saved,
+          reconciliation.stops,
         );
       },
       updateAdventureCover: async (id, selection) => {
@@ -330,7 +353,11 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
           nextSortOrder,
           stop,
         );
-        const next = insertStopChronologically(adventure.stops, created);
+        const next = insertStopChronologically(
+          adventure.stops,
+          created,
+          adventure.date,
+        );
         try {
           await reorderStops(
             adventureId,
@@ -361,13 +388,15 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
         );
         const startTimeChanged =
           timeToMinutes(existingStop.startTime) !== timeToMinutes(saved.startTime);
-        const next = startTimeChanged
+        const dayChanged = existingStop.dayDate !== saved.dayDate;
+        const next = startTimeChanged || dayChanged
           ? insertStopChronologically(
               adventure.stops.filter((item) => item.id !== stopId),
               saved,
+              adventure.date,
             )
           : adventure.stops.map((item) => (item.id === stopId ? saved : item));
-        if (startTimeChanged)
+        if (startTimeChanged || dayChanged)
           await reorderStops(
             adventureId,
             next.map((item) => item.id),
@@ -406,12 +435,16 @@ export function AdventureProvider({ children }: { children: ReactNode }) {
       reorderAdventureStops: async (adventureId, stopId, direction) => {
         const adventure = adventures.find((item) => item.id === adventureId);
         if (!adventure) throw new Error("Adventure not found.");
-        const next: AdventureStop[] = [...adventure.stops].sort(
-          (a, b) => a.sortOrder - b.sortOrder,
-        );
+        const next = sortStopsByDayAndOrder(adventure.stops, adventure.date);
         const from = next.findIndex((stop) => stop.id === stopId);
-        const to = from + direction;
-        if (from < 0 || to < 0 || to >= next.length) return;
+        if (from < 0) return;
+        const sameDay = next.filter(
+          (stop) => stop.dayDate === next[from].dayDate,
+        );
+        const dayIndex = sameDay.findIndex((stop) => stop.id === stopId);
+        const target = sameDay[dayIndex + direction];
+        if (!target) return;
+        const to = next.findIndex((stop) => stop.id === target.id);
         [next[from], next[to]] = [next[to], next[from]];
         await reorderStops(
           adventureId,

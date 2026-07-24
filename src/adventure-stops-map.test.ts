@@ -39,6 +39,7 @@ function stop(
   return {
     id,
     title: `Stop ${id}`,
+    dayDate: "2026-07-26",
     location: location.label,
     savedLocation: location,
     startTime: "",

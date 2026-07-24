@@ -94,6 +94,7 @@ function stopRow(overrides: Partial<StopRow> = {}): StopRow {
     id: "stop-id",
     adventure_id: "adventure-id",
     title: "Lunch",
+    day_date: "2026-07-26",
     location: null,
     latitude: null,
     longitude: null,

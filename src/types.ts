@@ -92,6 +92,7 @@ export interface Idea {
 export interface AdventureStop {
   id: string;
   title: string;
+  dayDate: string;
   location: string;
   savedLocation: SavedLocation;
   startTime: string;

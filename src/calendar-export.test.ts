@@ -78,6 +78,17 @@ describe("Adventure calendar export normalization", () => {
     expect(winter.endUtc.toISOString()).toBe("2026-01-22T01:00:00.000Z");
   });
 
+  it("exports July 26 single-day start and end times as exact UTC instants", () => {
+    const event = createCalendarExportEvent(adventure({
+      date: "2026-07-26",
+      startTime: "2:00 PM",
+      endTime: "4:30 PM",
+    }));
+    if (!event || event.isAllDay) throw new Error("Expected timed event");
+    expect(event.startUtc.toISOString()).toBe("2026-07-26T18:00:00.000Z");
+    expect(event.endUtc.toISOString()).toBe("2026-07-26T20:30:00.000Z");
+  });
+
   it("handles DST boundaries and rejects a nonexistent local time", () => {
     const beforeSpringForward = createCalendarExportEvent(adventure({
       date: "2026-03-08",

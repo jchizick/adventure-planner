@@ -1,4 +1,5 @@
 import type { Adventure } from "./types";
+import { adventureEffectiveEndDate } from "./calendar";
 
 export const CALENDAR_EXPORT_DEFAULT_DURATION_MINUTES = 60;
 export const CALENDAR_EXPORT_MIME_TYPE = "text/calendar;charset=utf-8";
@@ -205,7 +206,7 @@ export function createCalendarExportEvent(
 ): CalendarExportEvent | null {
   const title = adventure.title.trim();
   const startDate = parseCalendarDate(adventure.date);
-  const endDateValue = adventure.endDate || adventure.date;
+  const endDateValue = adventureEffectiveEndDate(adventure);
   const endDate = parseCalendarDate(endDateValue);
   if (!adventure.id || /[\r\n]/.test(adventure.id) || !title || !startDate || !endDate || endDateValue < adventure.date)
     return null;

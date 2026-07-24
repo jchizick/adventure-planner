@@ -121,10 +121,12 @@ export const validateDateTimeRange = ({
   const errors: DateTimeRangeErrors = {};
   if (requireStartDate && !startDate) errors.startDate = "Choose a start date.";
   if (!startDate && (startTime || endDate || endTime)) errors.startDate = "Choose a start date first.";
-  if (endTime && !endDate) errors.endDate = "Choose an end date first.";
+  if (endTime && !startTime)
+    errors.startTime = "Choose a start time before adding an end time.";
   if (startDate && endDate && endDate < startDate)
     errors.endDate = "End date must be on or after the start date.";
-  if (startDate && endDate === startDate && startTime && endTime && minutesFromClock(endTime) < minutesFromClock(startTime))
+  const effectiveEndDate = endDate || startDate;
+  if (startDate && effectiveEndDate === startDate && startTime && endTime && minutesFromClock(endTime) <= minutesFromClock(startTime))
     errors.endTime = "End time must be after the start time.";
   return errors;
 };
@@ -158,12 +160,7 @@ export const formatAdventureCountdown = (
   if (!start || Number.isNaN(now.getTime())) {
     return { label: "Time to be confirmed", accessibleLabel: "Next adventure start time is unavailable", state: "invalid" };
   }
-  const effectiveEndDate = endDate || date;
-  const end = endTime
-    ? parseAdventureDateTime(effectiveEndDate, endTime)
-    : endDate
-      ? new Date(parseLocalDate(endDate).setHours(23, 59, 59, 999))
-      : null;
+  const end = adventureEffectiveEnd({ date, endDate, endTime });
   if (now >= start) {
     if (end && end > start && now < end)
       return { label: "Happening now", accessibleLabel: "Next adventure is happening now", state: "happening" };
@@ -218,14 +215,25 @@ export const expandCalendarEventRanges = (events: CalendarEvent[]) => events.fla
   return expanded;
 });
 
-export const adventureEffectiveEnd = (adventure: Pick<Adventure, "date" | "endDate" | "endTime">) => {
-  const endDate = adventure.endDate || adventure.date;
-  if (adventure.endTime) return parseAdventureDateTime(endDate, adventure.endTime);
+export const adventureEffectiveEndDate = (
+  adventure: { date: string; endDate?: string },
+) => adventure.endDate || adventure.date;
+
+export const adventureEffectiveEnd = (
+  adventure: { date: string; endDate?: string; endTime?: string },
+) => {
+  if (adventure.endDate && adventure.endTime)
+    return parseAdventureDateTime(
+      adventureEffectiveEndDate(adventure),
+      adventure.endTime,
+    );
   if (adventure.endDate) {
-    const end = parseLocalDate(endDate);
+    const end = parseLocalDate(adventure.endDate);
     end.setHours(23, 59, 59, 999);
     return end;
   }
+  if (adventure.endTime)
+    return parseAdventureDateTime(adventure.date, adventure.endTime);
   return null;
 };
 
@@ -235,14 +243,26 @@ export const isAdventureHappeningNow = (
 ) => {
   const start = adventure.startTime ? parseAdventureDateTime(adventure.date, adventure.startTime) : parseLocalDate(adventure.date);
   const end = adventureEffectiveEnd(adventure);
-  return Boolean(start && end && now >= start && now <= end);
+  return Boolean(start && end && now >= start && now < end);
 };
 
 export const isAdventureMemoryEligible = (
   adventure: Pick<Adventure, "date" | "endDate" | "endTime">,
   now = new Date(),
 ) => {
-  if (!adventure.endDate) return true;
+  if (!adventure.endDate && !adventure.endTime) return true;
   const end = adventureEffectiveEnd(adventure);
-  return Boolean(end && now > end);
+  return Boolean(end && now >= end);
+};
+
+export const isAdventureUpcomingOrActive = (
+  adventure: Pick<Adventure, "date" | "endDate" | "startTime" | "endTime">,
+  now: Date,
+) => {
+  if (isAdventureHappeningNow(adventure, now)) return true;
+  const today = toLocalDateKey(now);
+  if (adventure.date > today) return true;
+  if (adventure.date < today) return false;
+  const end = adventureEffectiveEnd(adventure);
+  return !end || now < end;
 };

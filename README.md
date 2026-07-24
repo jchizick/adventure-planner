@@ -144,6 +144,17 @@ If the public key is absent, invalid, over quota, or rejected by its origin
 rules, the Adventure detail page keeps the itinerary list usable and shows a
 recoverable map fallback instead of crashing.
 
+## Itinerary days
+
+Every itinerary stop stores its assigned Adventure date in `day_date`.
+Single-day stops use the Adventure start date automatically. Multi-day stop
+forms offer every date in the inclusive range, and the detail view groups stops
+chronologically by day while preserving their saved order within each group.
+
+Moving an Adventure range preserves each stop's relative day offset. Shortening
+a range is blocked when stops would fall on removed days; reassign or delete
+those stops before saving. Stops are never removed automatically.
+
 ## Calendar exports
 
 Dated Adventures can be copied to Google Calendar or downloaded as an `.ics`
@@ -154,11 +165,13 @@ already exported event.
 Untimed Adventures export as all-day events with an exclusive end date. Timed
 events are converted from the Adventure's IANA timezone to UTC; when the
 Adventure has no timezone, the browser/application timezone is used. A timed
-Adventure with only a start time lasts 60 minutes. When a timed Adventure has
-an end date but no end time, its exported end is 23:59:59 on the final day,
-matching the app's existing effective-end behavior. The `.ics` generator uses
-UTC timestamps for timed events, `VALUE=DATE` for all-day events, CRLF endings,
-RFC 5545 text escaping, and UTF-8-aware 75-octet line folding.
+Adventure with only a start time lasts 60 minutes. An explicit end time without
+an end date is exported on the start date and overrides that fallback. When a
+timed Adventure has an end date but no end time, its exported end is 23:59:59
+on the final day, matching the app's existing effective-end behavior. The
+`.ics` generator uses UTC timestamps for timed events, `VALUE=DATE` for all-day
+events, CRLF endings, RFC 5545 text escaping, and UTF-8-aware 75-octet line
+folding.
 
 ## Home-screen installation
 
