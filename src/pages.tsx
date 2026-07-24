@@ -3315,31 +3315,12 @@ export function Memories() {
       <div className="memory-grid">
         {!loading && !error && done.length ? (
           done.map((a) => (
-            <button className="memory-card" key={a.id} onClick={() => nav(`/memories/${a.id}`)}>
-              <div className="memory-art-cover">
-                <SafeImage
-                  src={resolveMemoryCover({
-                    adventure: a,
-                    firstPhotoUrl: summaries[a.id]?.coverUrl,
-                  })}
-                  fallbackSrc={GENERIC_ADVENTURE_COVER}
-                  alt=""
-                  loading="lazy"
-                  width={1600}
-                  height={800}
-                />
-              </div>
-              <small>{formatAdventureDateTimeRange({ startDate: a.date, startTime: a.startTime, endDate: a.endDate, endTime: a.endTime })}</small>
-              <h3>{a.title}</h3>
-              <p>{summaries[a.id]?.reflection || a.notes || a.description || a.location}</p>
-              {summaries[a.id]?.rating.count ? (
-                <span className="memory-card-rating">
-                  <Star aria-hidden="true" fill="currentColor" />
-                  {formatRatingAverage(summaries[a.id].rating.average!)} · {formatRatingCount(summaries[a.id].rating.count)}
-                </span>
-              ) : null}
-              <span>{a.location}{summaries[a.id]?.photoCount ? ` · ${summaries[a.id].photoCount} ${summaries[a.id].photoCount === 1 ? "photo" : "photos"}` : " · Add photos"}</span>
-            </button>
+            <CompletedMemoryCard
+              adventure={a}
+              key={a.id}
+              onOpen={() => nav(`/memories/${a.id}`)}
+              summary={summaries[a.id]}
+            />
           ))
         ) : !loading && !error ? (
           <div className="empty-memory">
@@ -3350,5 +3331,59 @@ export function Memories() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export function CompletedMemoryCard({
+  adventure,
+  summary,
+  onOpen,
+}: {
+  adventure: Adventure;
+  summary?: MemorySummary;
+  onOpen: () => void;
+}) {
+  return (
+    <button className="memory-card" onClick={onOpen}>
+      <div className="memory-art-cover">
+        <SafeImage
+          src={resolveMemoryCover({
+            adventure,
+            firstPhotoUrl: summary?.coverUrl,
+          })}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt=""
+          loading="lazy"
+          width={1600}
+          height={800}
+        />
+      </div>
+      <small>{formatAdventureDateTimeRange({
+        startDate: adventure.date,
+        startTime: adventure.startTime,
+        endDate: adventure.endDate,
+        endTime: adventure.endTime,
+      })}</small>
+      <h3>{adventure.title}</h3>
+      <p className="memory-card-preview">
+        {summary?.reflection || adventure.notes || adventure.description || adventure.location}
+      </p>
+      <div className="memory-card-footer">
+        <span className="memory-card-location">{adventure.location}</span>
+        <span className="memory-card-photo-count">
+          {summary?.photoCount
+            ? `${summary.photoCount} ${summary.photoCount === 1 ? "photo" : "photos"}`
+            : "Add photos"}
+        </span>
+        <span className="memory-card-rating-row">
+          {summary?.rating.count ? (
+            <span className="memory-card-rating">
+              <Star aria-hidden="true" fill="currentColor" />
+              {formatRatingAverage(summary.rating.average!)} · {formatRatingCount(summary.rating.count)}
+            </span>
+          ) : null}
+        </span>
+      </div>
+    </button>
   );
 }

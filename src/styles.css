@@ -2429,6 +2429,10 @@ main {
   gap: 12px;
 }
 .memory-card {
+  min-height: 390px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   background: var(--surface);
   padding: 10px;
   border-radius: 18px;
@@ -2448,12 +2452,64 @@ main {
   color: var(--text-tertiary);
 }
 .memory-card h3 {
-  margin: 5px 0;
+  min-height: 2.5em;
+  max-height: 2.5em;
+  margin: 5px 0 7px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.25;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
-.memory-card p {
+.memory-card-preview {
+  min-height: 4.65em;
+  max-height: 4.65em;
+  margin: 0;
+  overflow: hidden;
   font-size: 12px;
+  line-height: 1.55;
   color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+@supports (-webkit-line-clamp: 3) {
+  .memory-card-preview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+}
+.memory-card-footer {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+.memory-card-location {
+  min-width: 0;
+  max-height: 2.8em;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.memory-card-photo-count {
+  display: block;
+  color: var(--text-tertiary);
+}
+.memory-card-rating-row {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
 }
 .empty-memory {
   text-align: center;
@@ -2545,11 +2601,10 @@ main {
 .memory-editor-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .memory-editor-meta > span { color: var(--text-tertiary); font-size: 11px; }
 .memory-editor-meta > div { display: flex; gap: 8px; }
-.memory-card > .memory-card-rating {
+.memory-card-rating {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 0 0 8px;
   color: #8b5a45;
   font-weight: 700;
 }
