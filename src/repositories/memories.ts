@@ -64,6 +64,22 @@ async function signedUrl(storagePath: string) {
   return data.signedUrl;
 }
 
+async function signedUrls(storagePaths: string[]) {
+  if (!storagePaths.length) return new Map<string, string>();
+  const { data, error } = await supabase.storage
+    .from(MEMORY_PHOTO_BUCKET)
+    .createSignedUrls(storagePaths, 60 * 60);
+  if (error || !data)
+    throw memoryError("load a photo", error ?? undefined);
+  const urls = new Map<string, string>();
+  for (const item of data) {
+    if (item.error || !item.path || !item.signedUrl)
+      throw memoryError("load a photo");
+    urls.set(item.path, item.signedUrl);
+  }
+  return urls;
+}
+
 async function mapPhoto(row: PhotoRow): Promise<MemoryPhoto> {
   return {
     id: row.id,
@@ -169,11 +185,9 @@ export async function loadMemorySummaries(
     summaries[adventureId].rating = summarizeAdventureRatings(
       ratingsByAdventure.get(adventureId) ?? [],
     );
-  await Promise.all(
-    [...firstPaths].map(async ([adventureId, path]) => {
-      summaries[adventureId].coverUrl = await signedUrl(path);
-    }),
-  );
+  const coverUrls = await signedUrls([...firstPaths.values()]);
+  for (const [adventureId, path] of firstPaths)
+    summaries[adventureId].coverUrl = coverUrls.get(path);
   return summaries;
 }
 

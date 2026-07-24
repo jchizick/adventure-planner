@@ -25,6 +25,11 @@ const tagIcons: Record<TagIconKey, LucideIcon> = {
   repeat: Repeat2,
 };
 
+export function TagIcon({ iconKey }: { iconKey: TagIconKey }) {
+  const Icon = tagIcons[iconKey];
+  return <Icon aria-hidden="true" />;
+}
+
 export function TagSelector({
   value,
   onChange,
@@ -40,7 +45,6 @@ export function TagSelector({
       <legend>Tags <span>Optional</span></legend>
       <div className="tag-selector-options">
         {curatedTags.map((tag) => {
-          const Icon = tagIcons[tag.iconKey];
           const active = selected.has(tag.slug);
           return (
             <button
@@ -51,7 +55,7 @@ export function TagSelector({
               disabled={disabled}
               onClick={() => onChange(toggleTag(value, tag.slug))}
             >
-              <Icon aria-hidden="true" />
+              <TagIcon iconKey={tag.iconKey} />
               <span>{tag.label}</span>
               {active && <Check className="tag-selected-check" aria-hidden="true" />}
             </button>
@@ -80,10 +84,9 @@ export function TagList({
       {visible.map((slug) => {
         const tag = tagDefinition(slug);
         if (!tag) return null;
-        const Icon = tagIcons[tag.iconKey];
         return (
           <span className="tag-chip" key={tag.id}>
-            <Icon aria-hidden="true" />
+            <TagIcon iconKey={tag.iconKey} />
             <span>{tag.label}</span>
           </span>
         );

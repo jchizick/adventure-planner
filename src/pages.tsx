@@ -8,7 +8,12 @@ import {
   type CSSProperties,
   type FormEvent,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -51,6 +56,7 @@ import {
   selectCalendarProposalIdeas,
   duplicateIdeaForEditing,
   normalizeCategoryOrNull,
+  categoryLabel,
   primaryCategories,
   type AdvancedIdeaFilters,
   type IdeaCategoryFilter,
@@ -65,7 +71,24 @@ import {
   subscribeToAdventureRatings,
   unsubscribeFromAdventureRatings,
 } from "./repositories/ratings";
-import { formatRatingAverage, formatRatingCount } from "./rating-model";
+import {
+  formatRatingAverage,
+  formatRatingCount,
+  formatWouldDoAgainSummary,
+} from "./rating-model";
+import {
+  countMemoryFilters,
+  defaultMemoryViewState,
+  filterAndSortMemories,
+  getMemoryRatingMetrics,
+  memorySortOptions,
+  parseMemoryViewParams,
+  selectOurFavourites,
+  serializeMemoryViewParams,
+  type MemoryFilters,
+  type MemoryRatingFilter,
+  type MemoryViewState,
+} from "./memory-rating-model";
 import {
   CATEGORY_COVER_ASSETS,
   GENERIC_ADVENTURE_COVER,
@@ -75,8 +98,11 @@ import {
   resolveMemoryCover,
 } from "./category-visuals";
 import { IdeaCoverThumbnail } from "./idea-cover-thumbnail";
-import { TagList, TagSelector } from "./tags";
-import { curatedTags } from "./tag-model";
+import { TagIcon, TagList, TagSelector } from "./tags";
+import {
+  curatedTags,
+  tagDefinition,
+} from "./tag-model";
 import { IdeaCoverPicker } from "./idea-cover-picker";
 import { getIdeaCoverPreset, isIdeaCoverPresetId, resolveIdeaCoverPreset } from "./idea-covers";
 import { CoverPickerSheet, type CoverPickerOption } from "./cover-picker";
@@ -608,6 +634,7 @@ function AdvancedFiltersPopover({
                       ),
                     })}
                   />
+                  <TagIcon iconKey={tag.iconKey} />
                   <span>{tag.label}</span>
                 </label>
               ))}
@@ -3260,24 +3287,237 @@ export function AdventureDetail() {
     </div>
   );
 }
+const memoryRatingFilters: {
+  value: MemoryRatingFilter;
+  label: string;
+}[] = [
+  { value: "all", label: "Any rating" },
+  { value: "would-do-again", label: "Would do again" },
+  { value: "rated", label: "Rated" },
+  { value: "unrated", label: "Unrated" },
+];
+
+export function MemoryFiltersPopover({
+  filters,
+  onChange,
+}: {
+  filters: MemoryFilters;
+  onChange: (filters: MemoryFilters) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogId = useId();
+  const ratingGroupName = useId();
+  const categoryGroupName = useId();
+  const activeCount = countMemoryFilters(filters);
+
+  const closeAndRestoreFocus = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    anchorRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!anchorRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAndRestoreFocus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeAndRestoreFocus, open]);
+
+  return (
+    <div className="advanced-filter-anchor memory-filter-anchor" ref={anchorRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="memory-filter-button"
+        aria-label={`Memory filters${activeCount ? `, ${activeCount} active` : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={dialogId}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <SlidersHorizontal aria-hidden="true" />
+        <span>Filter</span>
+        {activeCount > 0 && <b aria-hidden="true">{activeCount}</b>}
+      </button>
+      {open && (
+        <div
+          className="advanced-filter-popover memory-filter-popover"
+          id={dialogId}
+          role="dialog"
+          aria-label="Memory filters"
+        >
+          <div className="advanced-filter-heading">
+            <strong>Filters</strong>
+            <button
+              type="button"
+              disabled={!activeCount}
+              onClick={() => onChange({ ...defaultMemoryViewState.filters })}
+            >
+              Clear filters
+            </button>
+          </div>
+          <fieldset>
+            <legend>Ratings</legend>
+            <div className="filter-options-grid">
+              {memoryRatingFilters.map((option) => (
+                <label className="filter-option" key={option.value}>
+                  <input
+                    type="radio"
+                    name={ratingGroupName}
+                    checked={filters.rating === option.value}
+                    onChange={() => onChange({
+                      ...filters,
+                      rating: option.value,
+                    })}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+            <small className="filter-helper">
+              Would do again means at least one Yes and no submitted No.
+            </small>
+          </fieldset>
+          <fieldset>
+            <legend>Category</legend>
+            <div className="filter-options-grid">
+              <label className="filter-option">
+                <input
+                  type="radio"
+                  name={categoryGroupName}
+                  checked={filters.category === null}
+                  onChange={() => onChange({ ...filters, category: null })}
+                />
+                <span>All categories</span>
+              </label>
+              {primaryCategories.map((category) => (
+                <label className="filter-option" key={category.id}>
+                  <input
+                    type="radio"
+                    name={categoryGroupName}
+                    checked={filters.category === category.id}
+                    onChange={() => onChange({
+                      ...filters,
+                      category: category.id,
+                    })}
+                  />
+                  <span>{category.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Tags</legend>
+            <div className="filter-options-list">
+              {curatedTags.map((tag) => (
+                <label className="filter-option" key={tag.id}>
+                  <input
+                    type="checkbox"
+                    checked={filters.tags.includes(tag.slug)}
+                    onChange={() => onChange({
+                      ...filters,
+                      tags: toggleFilterValue(filters.tags, tag.slug),
+                    })}
+                  />
+                  <TagIcon iconKey={tag.iconKey} />
+                  <span>{tag.label}</span>
+                </label>
+              ))}
+            </div>
+            <small className="filter-helper">
+              Matches memories with any selected tag.
+            </small>
+          </fieldset>
+          <button
+            type="button"
+            className="memory-filter-done"
+            onClick={closeAndRestoreFocus}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Memories() {
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { adventures, loading, error, retry } = useAdventureStore();
-  const done = useMemo(() => [...adventures]
-    .filter((adventure) => adventure.completed && isAdventureMemoryEligible(adventure))
-    .sort((first, second) =>
-      (second.completedAt || second.date).localeCompare(first.completedAt || first.date),
-    ), [adventures]);
+  const completed = useMemo(
+    () => adventures.filter(
+      (adventure) =>
+        adventure.completed && isAdventureMemoryEligible(adventure),
+    ),
+    [adventures],
+  );
   const [summaries, setSummaries] = useState<Record<string, MemorySummary>>({});
-  const adventureIds = done.map((adventure) => adventure.id).join(",");
+  const [loadedSummaryIds, setLoadedSummaryIds] = useState("");
+  const [showAllFavourites, setShowAllFavourites] = useState(false);
+  const view = useMemo(
+    () => parseMemoryViewParams(searchParams),
+    [searchParams],
+  );
+  const shown = useMemo(
+    () => filterAndSortMemories(completed, summaries, view),
+    [completed, summaries, view],
+  );
+  const favourites = useMemo(
+    () => selectOurFavourites(completed, summaries),
+    [completed, summaries],
+  );
+  const visibleFavourites = showAllFavourites
+    ? favourites
+    : favourites.slice(0, 3);
+  const adventureIds = completed.map((adventure) => adventure.id).join(",");
+  const summariesReady =
+    !adventureIds || loadedSummaryIds === adventureIds;
+  const activeFilterCount = countMemoryFilters(view.filters);
+
+  const updateView = useCallback((next: MemoryViewState) => {
+    setSearchParams(serializeMemoryViewParams(next, searchParams));
+  }, [searchParams, setSearchParams]);
+
+  const clearFilters = useCallback(() => {
+    updateView({
+      ...view,
+      filters: { ...defaultMemoryViewState.filters },
+    });
+  }, [updateView, view]);
+
   useEffect(() => {
     let active = true;
     if (!adventureIds) {
       return () => { active = false; };
     }
     void loadMemorySummaries(adventureIds.split(","))
-      .then((next) => { if (active) setSummaries(next); })
-      .catch(() => { if (active) setSummaries({}); });
+      .then((next) => {
+        if (active) {
+          setSummaries(next);
+          setLoadedSummaryIds(adventureIds);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSummaries({});
+          setLoadedSummaryIds(adventureIds);
+        }
+      });
     return () => { active = false; };
   }, [adventureIds]);
   useEffect(() => {
@@ -3309,12 +3549,160 @@ export function Memories() {
           all the little things we want to remember.
         </p>
       </div>
-      <SectionTitle title="Completed adventures" />
+      {!loading && !error && completed.length > 0 && (
+        <section
+          className="memory-favourites"
+          aria-labelledby="memory-favourites-title"
+        >
+          <div className="memory-favourites-heading">
+            <div>
+              <span className="memory-favourites-eyebrow">
+                <Heart aria-hidden="true" />
+                Shared highlights
+              </span>
+              <h2 id="memory-favourites-title">Our favourites</h2>
+              <p>Highly rated memories we would gladly do again.</p>
+            </div>
+            {favourites.length > 3 && (
+              <button
+                type="button"
+                className="memory-favourites-toggle"
+                onClick={() => setShowAllFavourites((current) => !current)}
+              >
+                {showAllFavourites ? "Show fewer" : "See all favourites"}
+              </button>
+            )}
+          </div>
+          {!summariesReady ? (
+            <p className="memory-favourites-state" role="status">
+              Finding our favourites&hellip;
+            </p>
+          ) : visibleFavourites.length ? (
+            <div className="memory-favourites-grid">
+              {visibleFavourites.map((adventure) => (
+                <FavouriteMemoryCard
+                  adventure={adventure}
+                  key={adventure.id}
+                  onOpen={() => nav(`/memories/${adventure.id}`)}
+                  summary={summaries[adventure.id]}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="memory-favourites-empty">
+              <strong>Our favourites will appear here</strong>
+              <span>
+                Rate completed adventures and mark the ones you would do again.
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+      <div className="memory-completed-heading">
+        <SectionTitle title="Completed adventures" />
+        {completed.length > 0 && (
+          <div className="memory-controls">
+            <label className="memory-sort-control">
+              <span>Sort</span>
+              <select
+                aria-label="Sort completed memories"
+                value={view.sort}
+                onChange={(event) => updateView({
+                  ...view,
+                  sort: event.target.value as MemoryViewState["sort"],
+                })}
+              >
+                {memorySortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <MemoryFiltersPopover
+              filters={view.filters}
+              onChange={(filters) => updateView({ ...view, filters })}
+            />
+          </div>
+        )}
+      </div>
+      {view.sort === "highest-rated" && completed.length > 0 && (
+        <p className="memory-sort-helper">
+          Average rating first, then number of ratings.
+        </p>
+      )}
+      {activeFilterCount > 0 && (
+        <div className="memory-active-filters" aria-label="Active Memory filters">
+          {view.filters.rating !== "all" && (
+            <button
+              type="button"
+              aria-label={`Remove ${
+                memoryRatingFilters.find(
+                  (option) => option.value === view.filters.rating,
+                )?.label
+              } filter`}
+              onClick={() => updateView({
+                ...view,
+                filters: { ...view.filters, rating: "all" },
+              })}
+            >
+              {memoryRatingFilters.find(
+                (option) => option.value === view.filters.rating,
+              )?.label}
+              <span aria-hidden="true">&times;</span>
+            </button>
+          )}
+          {view.filters.category && (
+            <button
+              type="button"
+              aria-label={`Remove ${categoryLabel(view.filters.category)} category filter`}
+              onClick={() => updateView({
+                ...view,
+                filters: { ...view.filters, category: null },
+              })}
+            >
+              {categoryLabel(view.filters.category)}
+              <span aria-hidden="true">&times;</span>
+            </button>
+          )}
+          {view.filters.tags.map((tag) => (
+            <button
+              type="button"
+              key={tag}
+              aria-label={`Remove ${tagDefinition(tag)?.label ?? "tag"} filter`}
+              onClick={() => updateView({
+                ...view,
+                filters: {
+                  ...view.filters,
+                  tags: view.filters.tags.filter((item) => item !== tag),
+                },
+              })}
+            >
+              <TagIcon iconKey={tagDefinition(tag)!.iconKey} />
+              {tagDefinition(tag)?.label}
+              <span aria-hidden="true">&times;</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="memory-clear-filters"
+            onClick={clearFilters}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {shown.length} {shown.length === 1 ? "memory" : "memories"} shown,
+        sorted by {memorySortOptions.find(
+          (option) => option.value === view.sort,
+        )?.label.toLocaleLowerCase()}.
+      </p>
       {loading && <p className="inline-state" role="status">Gathering your memories…</p>}
       {error && <div className="ideas-state ideas-error" role="alert"><p>{error}</p><button onClick={() => void retry()}>Try again</button></div>}
       <div className="memory-grid">
-        {!loading && !error && done.length ? (
-          done.map((a) => (
+        {!loading && !error && shown.length ? (
+          shown.map((a) => (
             <CompletedMemoryCard
               adventure={a}
               key={a.id}
@@ -3322,15 +3710,80 @@ export function Memories() {
               summary={summaries[a.id]}
             />
           ))
-        ) : !loading && !error ? (
+        ) : !loading && !error && completed.length === 0 ? (
           <div className="empty-memory">
             <Heart />
             <h3>Your first memory is waiting</h3>
             <p>Complete an adventure and it will appear here.</p>
           </div>
+        ) : !loading && !error ? (
+          <div className="empty-memory memory-filter-empty">
+            <SlidersHorizontal aria-hidden="true" />
+            <h3>No memories match these filters</h3>
+            <p>Try clearing a filter or choosing a different sort.</p>
+            <button type="button" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+export function FavouriteMemoryCard({
+  adventure,
+  summary,
+  onOpen,
+}: {
+  adventure: Adventure;
+  summary: MemorySummary;
+  onOpen: () => void;
+}) {
+  const metrics = getMemoryRatingMetrics(summary);
+  const wouldDoAgainSummary = formatWouldDoAgainSummary(summary.rating);
+  return (
+    <button className="favourite-memory-card" onClick={onOpen}>
+      <div className="favourite-memory-cover">
+        <SafeImage
+          src={resolveMemoryCover({
+            adventure,
+            firstPhotoUrl: summary.coverUrl,
+          })}
+          fallbackSrc={GENERIC_ADVENTURE_COVER}
+          alt=""
+          loading="lazy"
+          width={800}
+          height={600}
+        />
+      </div>
+      <div className="favourite-memory-copy">
+        <small>{formatAdventureDateTimeRange({
+          startDate: adventure.date,
+          startTime: adventure.startTime,
+          endDate: adventure.endDate,
+          endTime: adventure.endTime,
+        })}</small>
+        <h3>{adventure.title}</h3>
+        {metrics.averageRating !== null && metrics.ratingCount > 0 && (
+          <span className="favourite-memory-rating">
+            <Star aria-hidden="true" fill="currentColor" />
+            {formatRatingAverage(metrics.averageRating)} &middot;{" "}
+            {formatRatingCount(metrics.ratingCount)}
+          </span>
+        )}
+        {wouldDoAgainSummary && (
+          <span className="favourite-memory-repeat">
+            {wouldDoAgainSummary}
+          </span>
+        )}
+        <TagList
+          tags={adventure.tags}
+          limit={2}
+          className="favourite-memory-tags"
+        />
+      </div>
+    </button>
   );
 }
 

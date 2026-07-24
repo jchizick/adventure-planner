@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -169,7 +176,9 @@ describe("completed Memory card previews", () => {
     expect(location.parentElement).toBe(ratingRow.parentElement);
     expect(location).not.toBe(ratingRow);
 
-    const twoRatingCard = screen.getByText("Two-member dinner").closest(".memory-card")!;
+    const memoryGrid = container.querySelector<HTMLElement>(".memory-grid")!;
+    const twoRatingCard = within(memoryGrid)
+      .getByText("Two-member dinner").closest(".memory-card")!;
     expect(twoRatingCard.querySelector(".memory-card-rating")?.textContent)
       .toContain("4.5 \u00b7 2 ratings");
     expect(twoRatingCard.querySelector(".memory-card-photo-count")?.textContent)
