@@ -1,10 +1,12 @@
 import { supabase } from "../lib/supabase";
 import { resolveMemberDisplayName } from "../member-names";
+import { summarizeAdventureRatings } from "../rating-model";
 import type {
   AdventureMemory,
   MemoryPhoto,
   MemorySummary,
 } from "../types";
+import { listRatingsForAdventures } from "./ratings";
 
 export const MEMORY_PHOTO_BUCKET = "adventure-photos";
 export const MAX_MEMORY_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -124,7 +126,7 @@ export async function loadMemorySummaries(
   adventureIds: string[],
 ): Promise<Record<string, MemorySummary>> {
   if (!adventureIds.length) return {};
-  const [memoryResult, photoResult] = await Promise.all([
+  const [memoryResult, photoResult, ratings] = await Promise.all([
     supabase
       .from("adventure_memories")
       .select("adventure_id, reflection")
@@ -134,13 +136,19 @@ export async function loadMemorySummaries(
       .select("adventure_id, storage_path, sort_order")
       .in("adventure_id", adventureIds)
       .order("sort_order", { ascending: true }),
+    listRatingsForAdventures(adventureIds),
   ]);
   if (memoryResult.error || photoResult.error)
     throw memoryError("load", memoryResult.error ?? photoResult.error ?? undefined);
   const summaries: Record<string, MemorySummary> = Object.fromEntries(
     adventureIds.map((adventureId) => [
       adventureId,
-      { adventureId, reflection: "", photoCount: 0 } satisfies MemorySummary,
+      {
+        adventureId,
+        reflection: "",
+        photoCount: 0,
+        rating: summarizeAdventureRatings([]),
+      } satisfies MemorySummary,
     ]),
   );
   for (const row of memoryResult.data ?? [])
@@ -151,6 +159,16 @@ export async function loadMemorySummaries(
     if (!firstPaths.has(row.adventure_id))
       firstPaths.set(row.adventure_id, row.storage_path);
   }
+  const ratingsByAdventure = new Map<string, typeof ratings>();
+  for (const rating of ratings) {
+    const grouped = ratingsByAdventure.get(rating.adventureId) ?? [];
+    grouped.push(rating);
+    ratingsByAdventure.set(rating.adventureId, grouped);
+  }
+  for (const adventureId of adventureIds)
+    summaries[adventureId].rating = summarizeAdventureRatings(
+      ratingsByAdventure.get(adventureId) ?? [],
+    );
   await Promise.all(
     [...firstPaths].map(async ([adventureId, path]) => {
       summaries[adventureId].coverUrl = await signedUrl(path);

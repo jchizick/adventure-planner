@@ -27,6 +27,7 @@ import {
 } from "./category-visuals";
 import { SafeImage } from "./components";
 import { useAdventureStore } from "./context";
+import { MemoryRatings } from "./memory-ratings";
 import {
   deleteMemoryPhoto,
   loadAdventureMemory,
@@ -319,6 +320,8 @@ export function MemoryDetail() {
                 <button className="memory-reflection-empty" onClick={() => setEditing(true)}>Add a few words about what made this day memorable.</button>
               )}
             </section>
+
+            {user ? <MemoryRatings adventureId={adventure.id} currentUserId={user.id} /> : null}
 
             <section className="memory-gallery-section">
               <div className="memory-section-heading">

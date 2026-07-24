@@ -38,6 +38,7 @@ import {
   Plane,
   Users,
   ShoppingBag,
+  Star,
 } from "lucide-react";
 import { useAdventureStore } from "./context";
 import { useIdeas } from "./ideas";
@@ -60,6 +61,11 @@ import { promoteAndReconcileIdea } from "./promotion-state";
 import { normalizeIdeaUrl, safeIdeaUrl } from "./idea-url";
 import { loadSpaceMembers, type SpaceMember } from "./repositories/invitations";
 import { loadMemorySummaries } from "./repositories/memories";
+import {
+  subscribeToAdventureRatings,
+  unsubscribeFromAdventureRatings,
+} from "./repositories/ratings";
+import { formatRatingAverage, formatRatingCount } from "./rating-model";
 import {
   CATEGORY_COVER_ASSETS,
   GENERIC_ADVENTURE_COVER,
@@ -3274,6 +3280,24 @@ export function Memories() {
       .catch(() => { if (active) setSummaries({}); });
     return () => { active = false; };
   }, [adventureIds]);
+  useEffect(() => {
+    if (!adventureIds) return;
+    let active = true;
+    let refreshTimer: number | undefined;
+    const channel = subscribeToAdventureRatings("memories", () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void loadMemorySummaries(adventureIds.split(","))
+          .then((next) => { if (active) setSummaries(next); })
+          .catch(() => undefined);
+      }, 80);
+    });
+    return () => {
+      active = false;
+      window.clearTimeout(refreshTimer);
+      void unsubscribeFromAdventureRatings(channel);
+    };
+  }, [adventureIds]);
   return (
     <div className="page memories">
       <PageHeader eyebrow="The days worth keeping" title="Memories" />
@@ -3308,6 +3332,12 @@ export function Memories() {
               <small>{formatAdventureDateTimeRange({ startDate: a.date, startTime: a.startTime, endDate: a.endDate, endTime: a.endTime })}</small>
               <h3>{a.title}</h3>
               <p>{summaries[a.id]?.reflection || a.notes || a.description || a.location}</p>
+              {summaries[a.id]?.rating.count ? (
+                <span className="memory-card-rating">
+                  <Star aria-hidden="true" fill="currentColor" />
+                  {formatRatingAverage(summaries[a.id].rating.average!)} · {formatRatingCount(summaries[a.id].rating.count)}
+                </span>
+              ) : null}
               <span>{a.location}{summaries[a.id]?.photoCount ? ` · ${summaries[a.id].photoCount} ${summaries[a.id].photoCount === 1 ? "photo" : "photos"}` : " · Add photos"}</span>
             </button>
           ))

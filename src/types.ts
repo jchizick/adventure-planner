@@ -171,11 +171,34 @@ export interface AdventureMemory {
   updatedAt?: string;
   photos: MemoryPhoto[];
 }
+export type AdventureRatingScore = 1 | 2 | 3 | 4 | 5;
+export interface AdventureRating {
+  id: string;
+  adventureId: string;
+  userId: string | null;
+  rating: AdventureRatingScore;
+  wouldDoAgain: boolean | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AdventureRatingWithMember extends AdventureRating {
+  memberName: string;
+  memberAvatarUrl: string | null;
+}
+export interface AdventureRatingSummary {
+  average: number | null;
+  count: number;
+  wouldDoAgainYes: number;
+  wouldDoAgainNo: number;
+  wouldDoAgainUnanswered: number;
+}
 export interface MemorySummary {
   adventureId: string;
   reflection: string;
   photoCount: number;
   coverUrl?: string;
+  rating: AdventureRatingSummary;
 }
 export interface CalendarEvent {
   id: string;
